@@ -10,6 +10,8 @@ internal static class Json
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+        // a document block's "kind" need not come first, so a hand-edited file still loads
+        AllowOutOfOrderMetadataProperties = true,
         WriteIndented = false,
     };
 

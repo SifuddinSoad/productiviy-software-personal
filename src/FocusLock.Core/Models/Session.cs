@@ -1,3 +1,5 @@
+using FocusLock.Core.Document;
+
 namespace FocusLock.Core.Models;
 
 public enum EndReason
@@ -31,6 +33,11 @@ public sealed class Session
 
     /// <summary>Each section's name printed above it.</summary>
     public bool PdfTitles { get; set; }
+
+    /// <summary>Which of the two builds the PDF: free-layout pages or the flowing document.</summary>
+    public string PdfMode { get; set; } = global::FocusLock.Core.Document.PdfMode.Free;
+
+    public DocModel Document { get; set; } = new();
 
     public bool IsEnded => EndedUtc is not null;
 }
