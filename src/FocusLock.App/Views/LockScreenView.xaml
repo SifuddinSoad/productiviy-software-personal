@@ -1,0 +1,44 @@
+<UserControl x:Class="FocusLock.App.Views.LockScreenView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:FocusLock.App.ViewModels"
+             xmlns:t="clr-namespace:FocusLock.App.Theme"
+             d:DataContext="{d:DesignInstance vm:LockScreenViewModel}"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             Background="{StaticResource Bg}">
+
+    <Grid>
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <TextBlock Style="{StaticResource Icon}" FontSize="20" Foreground="{StaticResource TextMuted}" Text="&#xe899;" />
+                <TextBlock Text="{Binding SessionName}" FontSize="15" Foreground="{StaticResource TextMuted}"
+                           VerticalAlignment="Center" Margin="9,0,0,0" />
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource Mono}" Text="{Binding TimerLabel}" FontSize="72" FontWeight="Medium"
+                       Foreground="{StaticResource Text}" HorizontalAlignment="Center" Margin="0,14,0,0" />
+
+            <Button x:Name="MakePlanButton" Click="MakePlan_Click" Style="{StaticResource Flat}"
+                    Height="46" t:Ui.CornerRadius="12" BorderThickness="1" BorderBrush="{StaticResource Border}"
+                    Foreground="{StaticResource Text}" t:Ui.HoverBackground="{StaticResource Hover}"
+                    HorizontalAlignment="Center" Margin="0,26,0,0"
+                    Visibility="{Binding IsFinished, Converter={StaticResource BoolToVisInv}}">
+                <StackPanel Orientation="Horizontal" Margin="22,0">
+                    <TextBlock Style="{StaticResource Icon}" FontSize="19" Text="&#xe745;" />
+                    <TextBlock Text="Make a plan" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="9,0,0,0" />
+                </StackPanel>
+            </Button>
+
+            <Button x:Name="EndButton" Click="End_Click" Style="{StaticResource PrimaryButton}"
+                    Height="46" HorizontalAlignment="Center" Margin="0,26,0,0"
+                    Visibility="{Binding IsFinished, Converter={StaticResource BoolToVis}}">
+                <StackPanel Orientation="Horizontal" Margin="22,0">
+                    <TextBlock Style="{StaticResource Icon}" FontSize="19" Text="&#xe898;" />
+                    <TextBlock Text="End session" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" Margin="9,0,0,0" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,177 @@
+<UserControl x:Class="FocusLock.App.Views.SetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:FocusLock.App.ViewModels"
+             xmlns:t="clr-namespace:FocusLock.App.Theme"
+             d:DataContext="{d:DesignInstance vm:SetupViewModel}"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             Background="{StaticResource Bg}">
+
+    <Grid>
+        <DockPanel>
+            <Border DockPanel.Dock="Top" Height="52" Background="{StaticResource Surface}"
+                    BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0">
+                    <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Light}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource OnLight}" Text="&#xe53b;" />
+                    </Border>
+                    <TextBlock Text="Saidrix Studio" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
+                </StackPanel>
+            </Border>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel MaxWidth="620" Margin="24,38,24,60" HorizontalAlignment="Center">
+
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="BackButton" Click="Back_Click" Style="{StaticResource OutlineIconButton}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xe5c4;" />
+                        </Button>
+                        <TextBlock Text="New focus session" FontSize="19" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                    </StackPanel>
+
+                    <!-- Session name -->
+                    <StackPanel Margin="0,22,0,0">
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="SESSION NAME" />
+                        <TextBox Style="{StaticResource InputBox}" Margin="0,8,0,0"
+                                 t:Ui.Placeholder="e.g. Saidrix Tutor System Planning"
+                                 Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                    </StackPanel>
+
+                    <!-- Length -->
+                    <StackPanel Margin="0,22,0,0">
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="SESSION LENGTH" />
+                        <ItemsControl ItemsSource="{Binding DurationChips}" Margin="0,10,0,0">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:DurationChip}">
+                                    <Button Click="Duration_Click">
+                                        <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="SemiBold" Margin="15,0" VerticalAlignment="Center" />
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                                <Setter Property="t:Ui.CornerRadius" Value="10" />
+                                                <Setter Property="Height" Value="38" />
+                                                <Setter Property="Margin" Value="0,0,8,0" />
+                                                <Setter Property="BorderThickness" Value="1" />
+                                                <Setter Property="Background" Value="{StaticResource Surface}" />
+                                                <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+                                                <Setter Property="t:Ui.HoverBorderBrush" Value="{StaticResource BorderHoverStrong}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Active}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource Light}" />
+                                                        <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                        <Setter Property="BorderBrush" Value="{StaticResource Light}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Background="{StaticResource SurfaceAlt}" BorderBrush="{StaticResource BorderAlt}"
+                                BorderThickness="1" CornerRadius="12" Padding="16,12" Margin="0,10,0,0">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="18" Foreground="{StaticResource TextMuted}" Text="&#xefd6;" />
+                                    <TextBlock Style="{StaticResource Mono}" Text="{Binding TimeRange}" FontSize="12.5"
+                                               Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                </StackPanel>
+                                <TextBlock Style="{StaticResource Mono}" Text="{Binding DurationLabel}" FontSize="12.5" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Text}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Plans -->
+                    <StackPanel Margin="0,22,0,0">
+                        <Grid>
+                            <TextBlock Style="{StaticResource SectionLabel}" Text="PLANS FOR THIS SESSION" HorizontalAlignment="Left" />
+                            <TextBlock Style="{StaticResource Mono}" Text="{Binding PlanCountLabel}" FontSize="11"
+                                       Foreground="{StaticResource TextDim}" HorizontalAlignment="Right" />
+                        </Grid>
+                        <Border Background="{StaticResource SurfaceAlt}" BorderBrush="{StaticResource BorderAlt}"
+                                BorderThickness="1" CornerRadius="14" Padding="12" Margin="0,10,0,0">
+                            <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Plans}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:PlanRow}">
+                                            <Border Background="{StaticResource SurfaceRow}" BorderBrush="{StaticResource Border}"
+                                                    BorderThickness="1" CornerRadius="10" Height="46" Margin="0,0,0,8">
+                                                <StackPanel Orientation="Horizontal" Margin="12,0">
+                                                    <TextBox Width="360" BorderThickness="0" Background="Transparent"
+                                                             Foreground="{StaticResource Text}" CaretBrush="{StaticResource Text}"
+                                                             VerticalContentAlignment="Center" FontSize="13.5" FontWeight="Medium"
+                                                             t:Ui.Placeholder="Name this plan"
+                                                             Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}">
+                                                        <TextBox.Style>
+                                                            <Style TargetType="TextBox" BasedOn="{StaticResource InputBox}">
+                                                                <Setter Property="Height" Value="44" />
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="t:Ui.FocusBorderBrush" Value="Transparent" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                            </Style>
+                                                        </TextBox.Style>
+                                                    </TextBox>
+                                                    <Button Click="RemovePlan_Click" Style="{StaticResource GhostIconButton}"
+                                                            HorizontalAlignment="Right" Margin="8,0,0,0">
+                                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5cd;" />
+                                                    </Button>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button x:Name="AddPlanButton" Click="AddPlan_Click" Style="{StaticResource Flat}"
+                                        HorizontalAlignment="Left" Height="38" t:Ui.CornerRadius="10"
+                                        BorderThickness="1" BorderBrush="{StaticResource BorderHover}"
+                                        Foreground="{StaticResource TextSecondary}"
+                                        t:Ui.HoverBackground="{StaticResource SurfaceRow}"
+                                        t:Ui.HoverForeground="{StaticResource Text}">
+                                    <StackPanel Orientation="Horizontal" Margin="14,0">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
+                                        <TextBlock Text="Add new plan" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <Button x:Name="StartButton" Click="Start_Click" Style="{StaticResource PrimaryButton}"
+                            Height="50" Margin="0,20,0,0" IsEnabled="{Binding CanStart}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="19" Text="&#xef57;" />
+                            <TextBlock Text="Start session" FontSize="14.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="9,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="Once started, the board stays locked until the timer ends."
+                               FontSize="11.5" Foreground="{StaticResource TextDim}" HorizontalAlignment="Center" Margin="0,10,0,0" />
+                </StackPanel>
+            </ScrollViewer>
+        </DockPanel>
+
+        <!-- Countdown overlay -->
+        <Border Background="{StaticResource Scrim}" Visibility="{Binding IsCountingDown, Converter={StaticResource BoolToVis}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="Save your work" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                <TextBlock HorizontalAlignment="Center" Margin="0,12,0,0" Foreground="{StaticResource TextMuted}">
+                    <Run Text="Locking in " /><Run Text="{Binding CountdownLeft, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource Text}" /><Run Text=" seconds" />
+                </TextBlock>
+                <Button x:Name="CancelCountdownButton" Click="CancelCountdown_Click" Style="{StaticResource Flat}"
+                        Margin="0,22,0,0" Height="38" t:Ui.CornerRadius="10" BorderThickness="1"
+                        BorderBrush="{StaticResource Border}" Foreground="{StaticResource TextSecondary}"
+                        t:Ui.HoverBackground="{StaticResource Hover}" t:Ui.HoverForeground="{StaticResource Text}"
+                        HorizontalAlignment="Center">
+                    <TextBlock Text="Cancel" FontSize="13" FontWeight="SemiBold" Margin="18,0" VerticalAlignment="Center" />
+                </Button>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
