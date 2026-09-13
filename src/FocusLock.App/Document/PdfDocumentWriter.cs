@@ -7,74 +7,59 @@ using FocusLock.App.Export;
 using FocusLock.Core.Document;
 using PdfSharp.Drawing;
 using PdfSharp.Pdf;
-using DocumentPage = System.Windows.Documents.DocumentPage;
 
 namespace FocusLock.App.Document;
 
 /// <summary>
-/// Writes a document's printed pages into a PDF by reading back what WPF drew on each page — text
-/// runs, shapes and pictures — and drawing the same things with PDFsharp at the same places. Text
-/// is written word by word at WPF's own glyph positions, so line breaks, alignment and spacing match
-/// the preview exactly and the words stay selectable. A page that cannot be read that way is written
-/// as a picture instead.
+/// Draws laid-out WPF text into a PDF page by reading back what WPF drew — text runs, shapes and
+/// pictures — and drawing the same things with PDFsharp at the same places. Text is written word by
+/// word at WPF's own glyph positions, so line breaks, alignment and spacing match the screen exactly
+/// and the words stay selectable. Anything that cannot be read that way is drawn as a picture instead.
 /// </summary>
 public static class PdfDocumentWriter
 {
     const double PointPerDip = 72.0 / 96.0;
     const double FallbackDpi = 200;
 
-    /// <summary>Why the last page that had to be written as a picture could not be read; for diagnosing.</summary>
+    /// <summary>Why the last piece that had to be drawn as a picture could not be read; for diagnosing.</summary>
     public static string? LastPictureFallback { get; private set; }
 
-    /// <returns>The number of pages written.</returns>
-    public static int Write(DocumentPager pager, string title, string path)
+    /// <summary>Draws one text fragment where it sits on the page.</summary>
+    public static void DrawFragment(XGraphics gfx, TextFragment fragment)
     {
-        EmbeddedFontResolver.Install();
+        // the fragment's page starts ShiftDip above its visible top; that part is empty spacer
+        var origin = new Matrix();
+        origin.Translate(DocLook.Dip(fragment.X), DocLook.Dip(fragment.Y) - fragment.ShiftDip);
 
-        using var pdf = new PdfDocument();
-        pdf.Info.Title = title;
-        pdf.Info.Creator = "Focus Mood";
-
-        for (var i = 0; i < pager.PageCount; i++)
+        var ops = new List<Action<XGraphics>>();
+        try
         {
-            var source = pager.GetPage(i);
-            var page = pdf.AddPage();
-            page.Width = XUnit.FromPoint(source.Size.Width * PointPerDip);
-            page.Height = XUnit.FromPoint(source.Size.Height * PointPerDip);
-
-            var ops = new List<Action<XGraphics>>();
-            bool readable;
-            try
-            {
-                Walk(source.Visual, Matrix.Identity, ops);
-                readable = true;
-            }
-            catch (Exception e) when (e is not OutOfMemoryException)
-            {
-                readable = false;
-                LastPictureFallback = $"page {i + 1}: {e}";
-                System.Diagnostics.Debug.WriteLine("FocusLock: PDF page written as a picture — " + LastPictureFallback);
-            }
-
-            using var gfx = XGraphics.FromPdfPage(page);
-            if (readable) foreach (var op in ops) op(gfx);
-            else DrawAsPicture(gfx, source);
+            Walk(fragment.Page.Visual, origin, ops);
         }
-
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        pdf.Save(path);
-        return pager.PageCount;
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            LastPictureFallback = e.ToString();
+            System.Diagnostics.Debug.WriteLine("FocusLock: text drawn into the PDF as a picture — " + e.Message);
+            DrawAsPicture(gfx, fragment);
+            return;
+        }
+        foreach (var op in ops) op(gfx);
     }
 
-    static void DrawAsPicture(XGraphics gfx, DocumentPage source)
+    static void DrawAsPicture(XGraphics gfx, TextFragment fragment)
     {
         var scale = FallbackDpi / 96;
-        var bitmap = new RenderTargetBitmap((int)(source.Size.Width * scale), (int)(source.Size.Height * scale),
+        var width = DocLook.Dip(fragment.W);
+        var height = DocLook.Dip(fragment.H);
+        var host = new ContainerVisual { Transform = new TranslateTransform(0, -fragment.ShiftDip) };
+        host.Children.Add(fragment.Page.Visual);
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale),
             FallbackDpi, FallbackDpi, PixelFormats.Pbgra32);
-        bitmap.Render(source.Visual);
+        bitmap.Render(host);
+        host.Children.Clear();
         using var stream = new MemoryStream(RegionRenderer.EncodePng(bitmap));
         using var image = XImage.FromStream(stream);
-        gfx.DrawImage(image, 0, 0, source.Size.Width * PointPerDip, source.Size.Height * PointPerDip);
+        gfx.DrawImage(image, fragment.X, fragment.Y, fragment.W, fragment.H);
     }
 
     // ---------------------------------------------------------------- reading the page

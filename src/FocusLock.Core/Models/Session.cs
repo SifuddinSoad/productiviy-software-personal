@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using FocusLock.Core.Document;
 
 namespace FocusLock.Core.Models;
@@ -34,10 +35,24 @@ public sealed class Session
     /// <summary>Each section's name printed above it.</summary>
     public bool PdfTitles { get; set; }
 
-    /// <summary>Which of the two builds the PDF: free-layout pages or the flowing document.</summary>
-    public string PdfMode { get; set; } = global::FocusLock.Core.Document.PdfMode.Free;
+    /// <summary>Text boxes on the pages; a box's text runs on to the following pages when it does not fit.</summary>
+    public List<TextItem> TextItems { get; set; } = [];
 
-    public DocModel Document { get; set; } = new();
+    /// <summary>A header line at the top of every page.</summary>
+    public bool PdfHeader { get; set; }
+
+    /// <summary>The header's words; the session's name when empty.</summary>
+    public string PdfHeaderText { get; set; } = "";
+
+    /// <summary>"Page 1 of 3" at the bottom of every page.</summary>
+    public bool PdfPageNumbers { get; set; }
+
+    /// <summary>
+    /// A document written in the short-lived separate Document mode. Read only so its text can be
+    /// moved into a text box (see <see cref="Export.PageLayout.Complete"/>); never written again.
+    /// </summary>
+    [JsonPropertyName("document")]
+    public DocModel? LegacyDocument { get; set; }
 
     public bool IsEnded => EndedUtc is not null;
 }
@@ -65,6 +80,19 @@ public sealed class ExtractItem
 
     /// <summary>Printed width in points. The height follows from the region's shape.</summary>
     public double PageW { get; set; }
+}
+
+/// <summary>A box of formatted text on a page. Only its top-left and width are set; its height comes from its text.</summary>
+public sealed class TextItem
+{
+    public string Id { get; set; } = "";
+    public string PageId { get; set; } = "";
+    public double PageX { get; set; }
+    public double PageY { get; set; }
+    public double PageW { get; set; }
+
+    /// <summary>Replaced as a whole on every edit, never changed in place, so a new list means new text.</summary>
+    public List<DocBlock> Blocks { get; set; } = [];
 }
 
 public sealed class PdfPage

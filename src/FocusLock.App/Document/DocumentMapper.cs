@@ -14,17 +14,14 @@ using WpfTableCell = System.Windows.Documents.TableCell;
 
 namespace FocusLock.App.Document;
 
-/// <summary>What the mapper needs to know about an extract to draw its section.</summary>
-public sealed record SectionSource(ImageSource? Picture, string Name, double Aspect);
-
 /// <summary>
-/// Turns a <see cref="DocModel"/> into a WPF <see cref="FlowDocument"/> and reads one back.
+/// Turns a text box's blocks into a WPF <see cref="FlowDocument"/> and reads one back.
 ///
-/// The same model builds two documents: the one being edited, where page breaks and missing
-/// pictures are visible placeholders and checklist boxes can be clicked, and one for printing,
-/// where a page break is a real break and a section without a picture is left out.
-/// Structure is marked with <c>Tag</c>: a paragraph's style, a checklist, a callout's tone, a
-/// section's settings, so reading back does not have to guess from formatting.
+/// The same blocks build two documents: the one being edited, where a page break is a visible
+/// marker and checklist boxes can be clicked, and one for laying out on pages, where a page break
+/// really moves the rest of the text to the next page.
+/// Structure is marked with <c>Tag</c>: a paragraph's style, a checklist, a callout's tone, so
+/// reading back does not have to guess from formatting.
 /// </summary>
 public static class DocumentMapper
 {
@@ -36,31 +33,26 @@ public static class DocumentMapper
 
     // ================================================================ model -> FlowDocument
 
-    public static FlowDocument Build(DocModel model, Func<string, SectionSource?> sections, bool forPrint)
+    /// <param name="widthDip">The text box's width; text wraps inside it with no padding of its own.</param>
+    public static FlowDocument Build(IReadOnlyList<DocBlock> blocks, string paper, double widthDip, bool forPrint)
     {
-        var (pageW, pageH) = DocLook.PageDip(model.Landscape);
         var doc = new FlowDocument
         {
             FontFamily = DocLook.TextFont,
             FontSize = DocLook.Dip(DocLook.StyleSizePt(DocStyle.Normal)),
-            Foreground = DocLook.Ink(model.Paper),
-            Background = HexBrush.FromHex(model.Paper),
-            PageWidth = pageW,
-            PagePadding = new Thickness(DocLook.Dip(DocLook.MarginPt)),
-            ColumnWidth = pageW,   // one column, however wide the page
+            Foreground = DocLook.Ink(paper),
+            PageWidth = widthDip,
+            PagePadding = new Thickness(0),
+            ColumnWidth = widthDip,   // one column, however wide the box
             IsHyphenationEnabled = false,
         };
-        if (forPrint) doc.PageHeight = pageH;
 
         var breakNext = false;
-        foreach (var group in GroupLists(model.Blocks))
+        foreach (var group in GroupLists(blocks))
         {
-            if (group is PageBreakBlock)
-            {
-                if (forPrint) { breakNext = true; continue; }
-            }
+            if (group is PageBreakBlock && forPrint) { breakNext = true; continue; }
 
-            var block = BuildBlock(group, model, sections, forPrint);
+            var block = BuildBlock(group, paper);
             if (block is null) continue;
             if (breakNext) { block.BreakPageBefore = true; breakNext = false; }
             doc.Blocks.Add(block);
@@ -88,16 +80,15 @@ public static class DocumentMapper
         if (run is not null) yield return run;
     }
 
-    static Block? BuildBlock(object item, DocModel model, Func<string, SectionSource?> sections, bool forPrint) => item switch
+    static Block? BuildBlock(object item, string paper) => item switch
     {
         List<ParagraphBlock> list => NewList(list),
         ParagraphBlock p => NewParagraph(p),
         CalloutBlock c => NewCallout(c),
-        DividerBlock => NewDivider(model.Paper),
-        PageBreakBlock => NewPageBreakMarker(model.Paper),
-        TableBlock t => NewTable(t, model.Paper),
-        SectionBlock s => NewSection(s, sections(s.ExtractId), model, forPrint),
-        _ => null,
+        DividerBlock => NewDivider(paper),
+        PageBreakBlock => NewPageBreakMarker(paper),
+        TableBlock t => NewTable(t, paper),
+        _ => null,   // pictures live on the pages as sections, not inside text
     };
 
     public static Paragraph NewParagraph(ParagraphBlock p)
@@ -294,82 +285,6 @@ public static class DocumentMapper
 
     public static bool IsTable(WpfTable table) => table.Tag is TableTag;
 
-    static BlockUIContainer NewSection(SectionBlock s, SectionSource? source, DocModel model, bool forPrint)
-    {
-        // a printed section with no picture takes no room but keeps its place, so blocks still line up with the editor's
-        if (forPrint && source?.Picture is null) return new BlockUIContainer(new Border { Height = 0 }) { Tag = s };
-        return new BlockUIContainer(SectionVisual(s, source, model)) { Tag = s, Margin = new Thickness(0, DocLook.Dip(4), 0, DocLook.Dip(10)) };
-    }
-
-    /// <summary>
-    /// Every place a page can start, in document order: paragraphs and the blocks that stand for
-    /// sections and dividers. Page-break markers are left out because a printed document has none.
-    /// The editor and the printed copy of the same model list the same units in the same order.
-    /// </summary>
-    public static List<TextElement> Units(FlowDocument doc)
-    {
-        var units = new List<TextElement>();
-        void Walk(IEnumerable<Block> blocks)
-        {
-            foreach (var block in blocks)
-            {
-                switch (block)
-                {
-                    case Paragraph p: units.Add(p); break;
-                    case BlockUIContainer { Tag: PageBreakTag }: break;
-                    case BlockUIContainer ui: units.Add(ui); break;
-                    case WpfList list: foreach (var item in list.ListItems) Walk(item.Blocks); break;
-                    case WpfSection section: Walk(section.Blocks); break;
-                    case WpfTable table:
-                        foreach (var cell in table.RowGroups.SelectMany(g => g.Rows).SelectMany(r => r.Cells)) Walk(cell.Blocks);
-                        break;
-                }
-            }
-        }
-        Walk(doc.Blocks);
-        return units;
-    }
-
-    public static bool IsPageBreakMarker(Block block) => block is BlockUIContainer { Tag: PageBreakTag };
-    public static bool IsDivider(Block block) => block is BlockUIContainer { Tag: DividerTag };
-
-    /// <summary>The picture, sized and aligned, with its caption underneath. Rebuilt whenever the section's settings change.</summary>
-    public static FrameworkElement SectionVisual(SectionBlock s, SectionSource? source, DocModel model)
-    {
-        var width = DocOps.SectionWidth(s.Size, DocLook.TextWidthDip(model.Landscape));
-        var align = s.Align switch
-        {
-            DocAlign.Left => HorizontalAlignment.Left,
-            DocAlign.Right => HorizontalAlignment.Right,
-            _ => HorizontalAlignment.Center,
-        };
-
-        var stack = new StackPanel { HorizontalAlignment = align, Width = width };
-        if (source?.Picture is { } picture)
-        {
-            stack.Children.Add(new Image { Source = picture, Width = width, Height = width * source.Aspect, Stretch = Stretch.Fill });
-        }
-        else
-        {
-            stack.Children.Add(new Border
-            {
-                Width = width, Height = width * (source?.Aspect ?? 0.5), Background = HexBrush.FromHex("#26292d"),
-                Child = new TextBlock { Text = "Plan removed", Foreground = HexBrush.FromHex("#9aa0a6"), Margin = new Thickness(10), FontFamily = Fonts.Sans },
-            });
-        }
-        if (s.Caption && source is not null && !string.IsNullOrWhiteSpace(source.Name))
-        {
-            stack.Children.Add(new TextBlock
-            {
-                Text = source.Name, FontFamily = Fonts.Sans, FontSize = DocLook.Dip(9), Foreground = DocLook.Muted(model.Paper),
-                TextAlignment = TextAlignment.Center, Margin = new Thickness(0, DocLook.Dip(3), 0, 0), TextTrimming = TextTrimming.CharacterEllipsis,
-            });
-        }
-
-        // a frame the editor lights up when the section is selected
-        return new Border { BorderThickness = new Thickness(2), BorderBrush = Brushes.Transparent, Padding = new Thickness(2), Child = stack, Background = Brushes.Transparent };
-    }
-
     // ================================================================ FlowDocument -> model
 
     public static List<DocBlock> Read(FlowDocument doc)
@@ -388,9 +303,6 @@ public static class DocumentMapper
                 break;
             case WpfTable table:
                 into.Add(ReadTable(table));
-                break;
-            case BlockUIContainer { Tag: SectionBlock s }:
-                into.Add(new SectionBlock { ExtractId = s.ExtractId, Size = s.Size, Align = s.Align, Caption = s.Caption });
                 break;
             case BlockUIContainer { Tag: DividerTag }:
                 into.Add(new DividerBlock());

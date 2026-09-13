@@ -4,12 +4,10 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FocusLock.App.Board;
-using FocusLock.App.Document;
 using FocusLock.App.Services;
 using FocusLock.App.Theme;
 using FocusLock.Core;
 using FocusLock.Core.Board;
-using FocusLock.Core.Document;
 using FocusLock.Core.Export;
 using FocusLock.Core.Models;
 using FocusLock.Core.Sessions;
@@ -433,7 +431,6 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         if (Arrange is not null) return;
         Controller.SetTool(Tool.Select);
         LastExport = "";
-        _sectionPictures.Clear();   // the canvases may have changed since they were drawn
         Arrange = new PageLayoutViewModel(this);
     }
 
@@ -441,41 +438,17 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public void CloseArrange()
     {
         if (Arrange is null) return;
-        Arrange.Document?.Flush();
+        Arrange.FinishEditing();
         Arrange.Detach();
         Arrange = null;
         RebuildExtracts();
         Persist();
     }
 
-    readonly Dictionary<string, SectionSource?> _sectionPictures = [];
+    /// <summary>There is something to print: a section, or a text box.</summary>
+    public bool CanExport => HasExtracts || Session.TextItems.Count > 0;
 
-    /// <summary>
-    /// An extract's picture, name and shape for the document. On screen a picture is drawn once
-    /// and kept; for printing it is drawn fresh and sharper.
-    /// </summary>
-    public SectionSource? SectionSourceFor(string extractId, bool print)
-    {
-        if (!print && _sectionPictures.TryGetValue(extractId, out var cached)) return cached;
-
-        SectionSource? source = null;
-        if (Session.Extracts.FirstOrDefault(e => e.Id == extractId) is { } item)
-        {
-            var plan = Session.Plans.FirstOrDefault(p => p.Id == item.PlanId);
-            ImageSource? picture = null;
-            if (plan is not null && item.W > 0 && item.H > 0)
-            {
-                var longest = print ? 2600 : 1400;
-                var scale = Math.Min(print ? 3 : 2, longest / Math.Max(item.W, item.H));
-                picture = RegionRenderer.Render(plan.Doc, new CoreRect(item.X, item.Y, item.W, item.H), scale);
-            }
-            source = new SectionSource(picture, item.Name, PageLayout.AspectOf(item));
-        }
-        if (!print) _sectionPictures[extractId] = source;
-        return source;
-    }
-
-    public bool CanExport => HasExtracts || Session.PdfMode == PdfMode.Document;
+    public void RaiseCanExport() => OnPropertyChanged(nameof(CanExport));
 
     /// <summary>Saves a layout edit, read-only session or not.</summary>
     public void PersistLayout() => Persist();
@@ -492,8 +465,6 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         };
         Session.Extracts.Add(item);
         PageLayout.Complete(Session);
-        // a document that has been started gets the new picture at its end, so nothing picked is ever lost
-        if (Session.Document.Blocks.Count > 0) DocOps.AppendSection(Session.Document, item.Id);
         RebuildExtracts();
         Panel = "extract";
         Persist();
@@ -525,7 +496,6 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public void RemoveExtract(ExtractCard card)
     {
         Session.Extracts.RemoveAll(e => e.Id == card.Item.Id);
-        DocOps.RemoveSections(Session.Document, card.Item.Id);
         RebuildExtracts();
         Persist();
     }
@@ -556,22 +526,13 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public void ExportPdf()
     {
         if (!CanExport) return;
-        Arrange?.Document?.Flush();
+        Arrange?.FinishEditing();
 
         var path = Export.ExportTarget.Choose(Session, locked: _runtime is { IsRunning: true });
         if (path is null) return;
 
         try
         {
-            if (Session.PdfMode == PdfMode.Document)
-            {
-                DocOps.Seed(Session);
-                var pager = DocumentPager.Paginate(Session.Document, id => SectionSourceFor(id, print: true), Session.Name);
-                var written = PdfDocumentWriter.Write(pager, Session.Name, path);
-                LastExport = $"Saved {written} page{(written == 1 ? "" : "s")} to {path}";
-                return;
-            }
-
             var drawn = Export.PdfExporter.Write(Session, path);
             var pages = Session.Pages.Count;
             LastExport = drawn == 0

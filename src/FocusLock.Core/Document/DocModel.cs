@@ -2,12 +2,6 @@ using System.Text.Json.Serialization;
 
 namespace FocusLock.Core.Document;
 
-public static class PdfMode
-{
-    public const string Free = "free";
-    public const string Document = "document";
-}
-
 public static class DocStyle
 {
     public const string Normal = "normal";
@@ -46,23 +40,15 @@ public static class SectionSize
 }
 
 /// <summary>
-/// The PDF as a flowing document: blocks from top to bottom, broken into pages when it is laid out.
-/// Nothing here knows about WPF; the app maps it to and from its editor.
+/// The shape of a document saved by the separate Document mode that briefly existed. Sessions are
+/// only read in this shape, so its text can move into a text box.
 /// </summary>
 public sealed class DocModel
 {
     public List<DocBlock> Blocks { get; set; } = [];
-    public bool Landscape { get; set; }
-
-    /// <summary>Paper colour. Text without a colour of its own follows it.</summary>
-    public string Paper { get; set; } = "#ffffff";
-
-    public bool ShowHeader { get; set; } = true;
-
-    /// <summary>Printed at the top of every page; the session's name when empty.</summary>
+    public bool ShowHeader { get; set; }
     public string HeaderText { get; set; } = "";
-
-    public bool ShowPageNumbers { get; set; } = true;
+    public bool ShowPageNumbers { get; set; }
 }
 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

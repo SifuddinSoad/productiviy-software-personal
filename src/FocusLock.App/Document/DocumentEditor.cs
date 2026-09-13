@@ -13,38 +13,34 @@ using WpfTableCell = System.Windows.Documents.TableCell;
 namespace FocusLock.App.Document;
 
 /// <summary>
-/// Everything the document editor does to its <see cref="RichTextBox"/>: styles, lists, blocks,
-/// tables, sections, and the house rules (plain-text paste, Enter after a heading, leaving a list
-/// or callout, checklist boxes). Structural changes are wrapped in one change so a single Ctrl+Z
-/// undoes each of them.
+/// Everything a text box's editor does to its <see cref="RichTextBox"/>: styles, lists, blocks,
+/// tables, and the house rules (plain-text paste, Enter after a heading, leaving a list or callout,
+/// checklist boxes). Structural changes are wrapped in one change so a single Ctrl+Z undoes each.
 /// </summary>
 public sealed class DocumentEditor
 {
     readonly RichTextBox _box;
-    readonly Func<string, SectionSource?> _sections;
     bool _tidying;
 
-    public DocModel Model { get; }
+    /// <summary>The page colour the text sits on; text without a colour of its own follows it.</summary>
+    public string Paper { get; private set; } = "#ffffff";
 
-    /// <summary>The text or structure changed; worth saving soon.</summary>
+    /// <summary>The text or structure changed.</summary>
     public event Action? ContentChanged;
 
-    /// <summary>The caret moved or a section was picked; toolbar and side panel should follow.</summary>
+    /// <summary>The caret moved; the formatting bar should follow.</summary>
     public event Action? ContextChanged;
 
-    public BlockUIContainer? SelectedSection { get; private set; }
-
-    public DocumentEditor(RichTextBox box, DocModel model, Func<string, SectionSource?> sections)
+    public DocumentEditor(RichTextBox box)
     {
         _box = box;
-        Model = model;
-        _sections = sections;
-
-        _box.IsDocumentEnabled = true;   // so checklist boxes and section pictures can be clicked
+        _box.IsDocumentEnabled = true;   // so checklist boxes can be clicked
         _box.AcceptsTab = true;
         _box.AllowDrop = false;
         _box.UndoLimit = 200;
         _box.SpellCheck.IsEnabled = false;
+        _box.BorderThickness = new Thickness(0);
+        _box.Padding = new Thickness(0);
 
         _box.TextChanged += (_, _) => OnTextChanged();
         _box.SelectionChanged += (_, _) => ContextChanged?.Invoke();
@@ -55,41 +51,25 @@ public sealed class DocumentEditor
 
     // ---------------------------------------------------------------- load and read
 
-    /// <summary>Builds the editor's document from the model. Undo history starts again.</summary>
-    public void Load()
+    /// <summary>Puts a text box's blocks in the editor, wrapping at its width. Undo history starts again.</summary>
+    public void Load(IReadOnlyList<DocBlock> blocks, string paper, double widthDip)
     {
-        SelectedSection = null;
-        var doc = DocumentMapper.Build(Model, _sections, forPrint: false);
+        Paper = paper;
+        var doc = DocumentMapper.Build(blocks, paper, widthDip, forPrint: false);
         _box.Document = doc;
-        _box.Background = HexBrush.FromHex(Model.Paper);
-        _box.Foreground = DocLook.Ink(Model.Paper);
-        _box.CaretBrush = DocLook.Ink(Model.Paper);
-        // RichTextBox ignores the document's page padding, so the margins go on the box instead,
-        // corrected once laid out by whatever inset the box adds of its own
-        var margin = DocLook.Dip(DocLook.MarginPt);
-        doc.PagePadding = new Thickness(0);
-        // lines wrap at exactly the printed text width, whatever room the box and its scrollbar leave
-        doc.PageWidth = DocLook.TextWidthDip(Model.Landscape);
-        _box.Padding = new Thickness(margin, margin, margin, margin);
-        _box.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
-        {
-            if (_box.Document != doc) return;
-            var inset = doc.ContentStart.GetInsertionPosition(LogicalDirection.Forward).GetCharacterRect(LogicalDirection.Forward).Left;
-            if (double.IsNaN(inset) || double.IsInfinity(inset)) return;
-            var extra = inset - margin;
-            if (Math.Abs(extra) > 0.5)
-                _box.Padding = new Thickness(margin - extra, margin, margin - extra, margin);
-        });
-        _box.CaretPosition = doc.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+        _box.Foreground = DocLook.Ink(paper);
+        _box.CaretBrush = DocLook.Ink(paper);
+        _box.Width = widthDip;
+        _box.CaretPosition = doc.ContentEnd.GetInsertionPosition(LogicalDirection.Backward);
         ContextChanged?.Invoke();
     }
 
-    /// <summary>The blocks as they stand, for saving, previewing or printing.</summary>
+    /// <summary>The blocks as they stand.</summary>
     public List<DocBlock> Read()
     {
         var blocks = DocumentMapper.Read(_box.Document);
         // text coloured exactly like the paper's own ink is the same as no colour at all
-        var ink = DocOps.InkFor(Model.Paper);
+        var ink = DocOps.InkFor(Paper);
         foreach (var run in AllRuns(blocks)) if (string.Equals(run.Color, ink, StringComparison.OrdinalIgnoreCase)) run.Color = null;
         return blocks;
     }
@@ -109,6 +89,17 @@ public sealed class DocumentEditor
         }
     }
 
+    /// <summary>Puts the caret in the first table cell, for a box that starts as a table.</summary>
+    public void CaretToFirstCell()
+    {
+        if (_box.Document.Blocks.OfType<WpfTable>().FirstOrDefault()?.RowGroups[0].Rows[0].Cells[0].Blocks.FirstBlock is Paragraph p)
+            _box.CaretPosition = p.ContentStart;
+    }
+
+    /// <summary>Puts the caret at the start of the first callout, for a box that starts as one.</summary>
+    public void CaretToStart() =>
+        _box.CaretPosition = _box.Document.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
+
     // ---------------------------------------------------------------- where the caret is
 
     public Paragraph? CurrentParagraph => _box.CaretPosition.Paragraph ?? _box.Selection.Start.Paragraph;
@@ -127,14 +118,8 @@ public sealed class DocumentEditor
 
     public TextAlignment CurrentAlignment => CurrentParagraph?.TextAlignment ?? TextAlignment.Left;
 
-    public bool SelectionIs(DependencyProperty dp, object value)
-    {
-        var current = _box.Selection.GetPropertyValue(dp);
-        return current != DependencyProperty.UnsetValue && Equals(current, value);
-    }
-
     public bool IsBold => _box.Selection.GetPropertyValue(TextElement.FontWeightProperty) is FontWeight w && w.ToOpenTypeWeight() >= 700;
-    public bool IsItalic => SelectionIs(TextElement.FontStyleProperty, FontStyles.Italic);
+    public bool IsItalic => Equals(_box.Selection.GetPropertyValue(TextElement.FontStyleProperty), FontStyles.Italic);
     public bool IsUnderline => _box.Selection.GetPropertyValue(Inline.TextDecorationsProperty) is TextDecorationCollection { Count: > 0 };
 
     /// <summary>The size under the caret in points, or null when the selection mixes sizes.</summary>
@@ -183,6 +168,11 @@ public sealed class DocumentEditor
         try { action(); }
         finally { _box.EndChange(); }
         Tidy();
+        AfterCommand();
+    }
+
+    void AfterCommand()
+    {
         ContentChanged?.Invoke();
         ContextChanged?.Invoke();
         _box.Focus();
@@ -209,13 +199,6 @@ public sealed class DocumentEditor
         AfterCommand();
     }
 
-    void AfterCommand()
-    {
-        ContentChanged?.Invoke();
-        ContextChanged?.Invoke();
-        _box.Focus();
-    }
-
     /// <summary>Steps the selection's size one notch up or down the usual ladder of point sizes.</summary>
     public void StepSize(int direction)
     {
@@ -228,7 +211,7 @@ public sealed class DocumentEditor
 
     public void SetColor(string? hex)
     {
-        _box.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, hex is null ? DocLook.Ink(Model.Paper) : HexBrush.FromHex(hex));
+        _box.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, hex is null ? DocLook.Ink(Paper) : HexBrush.FromHex(hex));
         AfterCommand();
     }
 
@@ -244,12 +227,11 @@ public sealed class DocumentEditor
     public void ToggleList(string kind)
     {
         var current = CurrentList;
+        var command = kind == DocList.Number ? EditingCommands.ToggleNumbering : EditingCommands.ToggleBullets;
         if (current == kind)
         {
-            // leaving a list: WPF's own toggle takes the paragraphs out
             Change(() =>
             {
-                var command = kind == DocList.Number ? EditingCommands.ToggleNumbering : EditingCommands.ToggleBullets;
                 if (kind == DocList.Check) RetagListsInSelection(TextMarkerStyle.Disc, null);
                 command.Execute(null, _box);
             });
@@ -258,11 +240,7 @@ public sealed class DocumentEditor
 
         Change(() =>
         {
-            if (current == DocList.None)
-            {
-                var command = kind == DocList.Number ? EditingCommands.ToggleNumbering : EditingCommands.ToggleBullets;
-                command.Execute(null, _box);
-            }
+            if (current == DocList.None) command.Execute(null, _box);
             var marker = kind switch { DocList.Number => TextMarkerStyle.Decimal, DocList.Check => TextMarkerStyle.None, _ => TextMarkerStyle.Disc };
             RetagListsInSelection(marker, kind == DocList.Check ? "check" : null);
         });
@@ -280,10 +258,9 @@ public sealed class DocumentEditor
 
     // ---------------------------------------------------------------- blocks
 
-    /// <summary>The block directly in the document that holds the caret: a paragraph, list, callout or table.</summary>
+    /// <summary>The block directly in the text that holds the caret: a paragraph, list, callout or table.</summary>
     Block? TopLevelBlock()
     {
-        if (SelectedSection is not null) return SelectedSection;
         TextElement? e = CurrentParagraph;
         while (e is not null && e.Parent is not FlowDocument) e = e.Parent as TextElement;
         return e as Block;
@@ -297,11 +274,10 @@ public sealed class DocumentEditor
     {
         var doc = _box.Document;
         var anchor = TopLevelBlock();
-        if (anchor is Paragraph p && p.Parent is FlowDocument && new TextRange(p.ContentStart, p.ContentEnd).Text.Trim().Length == 0)
+        if (anchor is Paragraph p && new TextRange(p.ContentStart, p.ContentEnd).Text.Trim().Length == 0)
         {
             doc.Blocks.InsertBefore(p, block);
-            if (block.NextBlock is null) doc.Blocks.Add(new Paragraph());
-            else if (block.NextBlock == p && doc.Blocks.LastBlock != p) doc.Blocks.Remove(p);
+            if (doc.Blocks.LastBlock != p) doc.Blocks.Remove(p);
         }
         else if (anchor is not null) doc.Blocks.InsertAfter(anchor, block);
         else doc.Blocks.Add(block);
@@ -325,13 +301,14 @@ public sealed class DocumentEditor
 
     public void InsertDivider() => Change(() =>
     {
-        var divider = Insert(DocumentMapper.NewDivider(Model.Paper));
+        var divider = Insert(DocumentMapper.NewDivider(Paper));
         if (divider.NextBlock is Paragraph next) _box.CaretPosition = next.ContentStart;
     });
 
+    /// <summary>Everything after it continues at the top of the next page.</summary>
     public void InsertPageBreak() => Change(() =>
     {
-        var marker = Insert(DocumentMapper.NewPageBreakMarker(Model.Paper));
+        var marker = Insert(DocumentMapper.NewPageBreakMarker(Paper));
         if (marker.NextBlock is Paragraph next) _box.CaretPosition = next.ContentStart;
     });
 
@@ -343,29 +320,17 @@ public sealed class DocumentEditor
                 .Select(_ => Enumerable.Range(0, Math.Max(1, columns)).Select(_ => new Core.Document.TableCell()).ToList())
                 .ToList(),
         };
-        var table = (WpfTable)Insert(DocumentMapper.NewTable(model, Model.Paper));
+        var table = (WpfTable)Insert(DocumentMapper.NewTable(model, Paper));
         if (table.RowGroups[0].Rows[0].Cells[0].Blocks.FirstBlock is Paragraph first) _box.CaretPosition = first.ContentStart;
-    });
-
-    public void InsertSection(string extractId) => Change(() =>
-    {
-        var section = new SectionBlock { ExtractId = extractId };
-        var block = Insert(new BlockUIContainer(DocumentMapper.SectionVisual(section, _sections(extractId), Model))
-        {
-            Tag = section,
-            Margin = new Thickness(0, DocLook.Dip(4), 0, DocLook.Dip(10)),
-        });
-        Select((BlockUIContainer)block);
     });
 
     // ---------------------------------------------------------------- tables
 
     public void AddRow(bool below) => TableEdit((table, rowIndex, columnIndex) =>
     {
-        var group = table.RowGroups[0];
         var row = new TableRow();
-        for (var c = 0; c < table.Columns.Count; c++) row.Cells.Add(DocumentMapper.NewCell([], header: false, Model.Paper));
-        group.Rows.Insert(below ? rowIndex + 1 : rowIndex, row);
+        for (var c = 0; c < table.Columns.Count; c++) row.Cells.Add(DocumentMapper.NewCell([], header: false, Paper));
+        table.RowGroups[0].Rows.Insert(below ? rowIndex + 1 : rowIndex, row);
         return (below ? rowIndex + 1 : rowIndex, columnIndex);
     });
 
@@ -374,7 +339,7 @@ public sealed class DocumentEditor
         var at = right ? columnIndex + 1 : columnIndex;
         table.Columns.Insert(at, new TableColumn { Width = new GridLength(1, GridUnitType.Star) });
         foreach (var row in table.RowGroups.SelectMany(g => g.Rows))
-            row.Cells.Insert(Math.Min(at, row.Cells.Count), DocumentMapper.NewCell([], header: false, Model.Paper));
+            row.Cells.Insert(Math.Min(at, row.Cells.Count), DocumentMapper.NewCell([], header: false, Paper));
         return (rowIndex, at);
     });
 
@@ -418,7 +383,7 @@ public sealed class DocumentEditor
             for (var r = 0; r < rows.Count; r++)
                 foreach (var c in rows[r].Cells)
                 {
-                    if (r == 0) { c.Background = DocLook.TableHeader(Model.Paper); c.FontWeight = FontWeights.SemiBold; }
+                    if (r == 0) { c.Background = DocLook.TableHeader(Paper); c.FontWeight = FontWeights.SemiBold; }
                     else { c.ClearValue(TextElement.BackgroundProperty); c.ClearValue(TextElement.FontWeightProperty); }
                 }
             var targetRow = rows[Math.Clamp(target.Row, 0, rows.Count - 1)];
@@ -426,40 +391,6 @@ public sealed class DocumentEditor
             _box.CaretPosition = targetCell.ContentStart.GetInsertionPosition(LogicalDirection.Forward);
         });
     }
-
-    // ---------------------------------------------------------------- sections
-
-    public SectionBlock? SelectedSectionSettings => SelectedSection?.Tag as SectionBlock;
-
-    void Select(BlockUIContainer? section)
-    {
-        if (SelectedSection?.Child is Border old) old.BorderBrush = Brushes.Transparent;
-        SelectedSection = section;
-        if (section?.Child is Border frame) frame.BorderBrush = HexBrush.FromHex("#378add");
-        ContextChanged?.Invoke();
-    }
-
-    public void UpdateSection(Action<SectionBlock> change)
-    {
-        if (SelectedSection is not { Tag: SectionBlock settings } container) return;
-        change(settings);
-        var frame = DocumentMapper.SectionVisual(settings, _sections(settings.ExtractId), Model);
-        if (frame is Border border) border.BorderBrush = HexBrush.FromHex("#378add");
-        container.Child = frame;
-        ContentChanged?.Invoke();
-        ContextChanged?.Invoke();
-    }
-
-    public void RemoveSelectedSection() => Change(() =>
-    {
-        if (SelectedSection is not { } section) return;
-        var doc = _box.Document;
-        var next = section.NextBlock ?? section.PreviousBlock;
-        doc.Blocks.Remove(section);
-        SelectedSection = null;
-        if (doc.Blocks.Count == 0) doc.Blocks.Add(NewNormalParagraph());
-        _box.CaretPosition = (next ?? doc.Blocks.FirstBlock).ContentStart;
-    });
 
     // ---------------------------------------------------------------- house rules
 
@@ -474,33 +405,16 @@ public sealed class DocumentEditor
                 ContentChanged?.Invoke();
                 return;
             }
-            if (node is Border { Parent: BlockUIContainer { Tag: SectionBlock } container })
-            {
-                Select(container);
-                _box.Focus();
-                e.Handled = true;
-                return;
-            }
         }
-        if (SelectedSection is not null) Select(null);
     }
 
     static DependencyObject? Up(DependencyObject node) =>
-        node is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(node) ?? LogicalTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
+        node is Visual ? VisualTreeHelper.GetParent(node) ?? LogicalTreeHelper.GetParent(node) : LogicalTreeHelper.GetParent(node);
 
     void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
-
-        if (SelectedSection is not null && e.Key is Key.Delete or Key.Back)
-        {
-            RemoveSelectedSection();
-            e.Handled = true;
-            return;
-        }
-        if (SelectedSection is not null && e.Key is not (Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift))
-            Select(null);
 
         if (e.Key == Key.Enter && ctrl) { InsertPageBreak(); e.Handled = true; return; }
         if (e.Key != Key.Enter || shift) return;
@@ -566,7 +480,7 @@ public sealed class DocumentEditor
         ContentChanged?.Invoke();
     }
 
-    /// <summary>Checklist items always have a box and nothing else does; a document is never left without a paragraph.</summary>
+    /// <summary>Checklist items always have a box and nothing else does; the text is never left without a paragraph.</summary>
     void Tidy()
     {
         if (_tidying) return;
@@ -576,7 +490,7 @@ public sealed class DocumentEditor
             var doc = _box.Document;
             foreach (var p in AllParagraphs(doc.Blocks).ToList())
             {
-                var inChecklist = p.Parent is ListItem { Parent: WpfList list } && DocumentMapper.IsChecklist(list) && ((ListItem)p.Parent).Blocks.FirstBlock == p;
+                var inChecklist = p.Parent is ListItem { Parent: WpfList list } item && DocumentMapper.IsChecklist(list) && item.Blocks.FirstBlock == p;
                 var first = p.Inlines.FirstInline;
                 var hasBox = first is not null && DocumentMapper.IsCheckBox(first);
                 if (inChecklist && !hasBox) DocumentMapper.AddCheckBox(p, ticked: false);

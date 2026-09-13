@@ -63,6 +63,33 @@ public static class Snapping
     }
 
     /// <summary>
+    /// Changes a text box's width by dragging its left or right edge, the other edge held still; the
+    /// moving edge snaps to the nearest line. Height is not involved: a text box's height is its text.
+    /// </summary>
+    /// <returns>The new left edge and width.</returns>
+    public static (double X, double W, IReadOnlyList<Guide> Guides) ResizeWidth(
+        double left, double right, double pointerX, bool dragRight, double pageW, IEnumerable<Rect> others, double threshold, double minWidth)
+    {
+        var edge = pointerX;
+        var guides = new List<Guide>();
+        if (Nearest([edge], LinesX(pageW, others as IReadOnlyCollection<Rect> ?? others.ToList()), threshold) is { } snap)
+        {
+            edge = snap.Line;
+            guides.Add(new Guide(true, snap.Line));
+        }
+
+        if (dragRight)
+        {
+            var w = Math.Max(minWidth, edge - left);
+            if (w != edge - left) guides.Clear();
+            return (left, w, guides);
+        }
+        var width = Math.Max(minWidth, right - edge);
+        if (width != right - edge) guides.Clear();
+        return (right - width, width, guides);
+    }
+
+    /// <summary>
     /// Resizes from one corner with the opposite corner held still. The picture keeps its shape
     /// (<paramref name="aspect"/> is its height over width) and the caption band keeps its height, so
     /// only the width is free: it follows whichever axis the pointer has moved further along, then

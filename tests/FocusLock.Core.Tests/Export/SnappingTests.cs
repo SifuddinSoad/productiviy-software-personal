@@ -95,6 +95,26 @@ public class SnappingTests
     }
 
     [Fact]
+    public void Dragging_a_text_box_right_edge_snaps_it_to_the_margin_and_keeps_the_left_edge()
+    {
+        var r = Snapping.ResizeWidth(left: 50, right: 300, pointerX: PageW - M - 4, dragRight: true, PageW, [], T, minWidth: 60);
+
+        Assert.Equal(50, r.X);
+        Assert.Equal(PageW - M - 50, r.W, 6);
+        Assert.Contains(new Guide(true, PageW - M), r.Guides);
+    }
+
+    [Fact]
+    public void Dragging_a_text_box_left_edge_keeps_the_right_edge_and_the_minimum_width()
+    {
+        var r = Snapping.ResizeWidth(left: 50, right: 300, pointerX: 290, dragRight: false, PageW, [], threshold: 0, minWidth: 60);
+
+        Assert.Equal(300, r.X + r.W, 6);
+        Assert.Equal(60, r.W, 6);
+        Assert.Empty(r.Guides);
+    }
+
+    [Fact]
     public void Resizing_never_goes_below_the_minimum_width()
     {
         var r = Snapping.Resize(new Pt(100, 100), new Pt(101, 101), "se", 0.5, 0, PageW, PageH, [], 0, minWidth: 40);

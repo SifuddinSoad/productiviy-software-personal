@@ -4,15 +4,14 @@
              xmlns:vm="clr-namespace:FocusLock.App.ViewModels"
              xmlns:t="clr-namespace:FocusLock.App.Theme"
              xmlns:ex="clr-namespace:FocusLock.App.Export"
-             xmlns:v="clr-namespace:FocusLock.App.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:PageLayoutViewModel}"
-             Background="{StaticResource Bg}">
+             Background="{StaticResource Bg}" Foreground="{StaticResource Text}">
 
     <UserControl.Resources>
-        <!-- one half of the Dark / White switch; Tag says which half, IsLight which is on -->
+        <!-- one half of the Dark / White switch -->
         <Style x:Key="ThemeHalf" TargetType="Button" BasedOn="{StaticResource Flat}">
             <Setter Property="Height" Value="26" />
             <Setter Property="Padding" Value="10,0" />
@@ -20,9 +19,44 @@
             <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
             <Setter Property="t:Ui.HoverBackground" Value="{StaticResource Hover}" />
         </Style>
+
+        <!-- a bar button that shows light when its Tag is True; it never takes focus, so the text keeps its selection -->
+        <Style x:Key="BarTool" TargetType="Button" BasedOn="{StaticResource Flat}">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="MinWidth" Value="28" />
+            <Setter Property="Padding" Value="7,0" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="t:Ui.CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="t:Ui.HoverBackground" Value="{StaticResource Hover}" />
+            <Setter Property="Focusable" Value="False" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource Light}" />
+                    <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                    <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AddTool" TargetType="Button" BasedOn="{StaticResource BarTool}">
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+        </Style>
+
+        <Style x:Key="BarDivider" TargetType="Border">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Margin" Value="6,0" />
+            <Setter Property="Background" Value="{StaticResource Border}" />
+        </Style>
     </UserControl.Resources>
 
     <DockPanel>
+        <!-- ============ top bar: pages and adding ============ -->
         <Border DockPanel.Dock="Top" Height="48" Background="{StaticResource Surface}"
                 BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
             <Grid Margin="14,0">
@@ -36,57 +70,63 @@
                         </StackPanel>
                     </Button>
                     <TextBlock Text="Arrange pages" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="14,0,0,0" />
-
-                    <!-- which of the two builds the PDF -->
-                    <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="2" Margin="14,0,0,0">
-                        <StackPanel Orientation="Horizontal">
-                            <Button Click="FreeMode_Click" Content="Free layout" FontSize="11.5" FontWeight="SemiBold">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource ThemeHalf}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsDocument}" Value="False">
-                                                <Setter Property="Background" Value="{StaticResource Light}" />
-                                                <Setter Property="Foreground" Value="{StaticResource OnLight}" />
-                                                <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                            <Button Click="DocumentMode_Click" Content="Document" FontSize="11.5" FontWeight="SemiBold">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource ThemeHalf}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsDocument}" Value="True">
-                                                <Setter Property="Background" Value="{StaticResource Light}" />
-                                                <Setter Property="Foreground" Value="{StaticResource OnLight}" />
-                                                <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </StackPanel>
+                    <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding PageCountLabel}" FontSize="10.5" Foreground="{StaticResource TextSubtle}" />
                     </Border>
+                    <Button Click="Undo_Click" Style="{StaticResource GhostIconButton}" Margin="10,0,0,0" ToolTip="Undo (Ctrl+Z)"
+                            IsEnabled="{Binding CanUndo}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe166;" />
+                    </Button>
+                    <Button Click="Redo_Click" Style="{StaticResource GhostIconButton}" ToolTip="Redo (Ctrl+Y)"
+                            IsEnabled="{Binding CanRedo}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15a;" />
+                    </Button>
 
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}">
-                        <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding PageCountLabel}" FontSize="10.5" Foreground="{StaticResource TextSubtle}" />
-                        </Border>
-                        <Button Click="Undo_Click" Style="{StaticResource GhostIconButton}" Margin="10,0,0,0" ToolTip="Undo (Ctrl+Z)"
-                                IsEnabled="{Binding CanUndo}">
-                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe166;" />
-                        </Button>
-                        <Button Click="Redo_Click" Style="{StaticResource GhostIconButton}" ToolTip="Redo (Ctrl+Y)"
-                                IsEnabled="{Binding CanRedo}">
-                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15a;" />
-                        </Button>
-                    </StackPanel>
+                    <Border Style="{StaticResource BarDivider}" Margin="12,0" />
+                    <TextBlock Text="Add" FontSize="11.5" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <Button Click="AddText_Click" CommandParameter="text" Style="{StaticResource AddTool}" ToolTip="A text box to type in">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe264;" />
+                            <TextBlock Text="Text" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Click="AddText_Click" CommandParameter="table" Style="{StaticResource AddTool}" ToolTip="A table">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe265;" />
+                            <TextBlock Text="Table" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Click="AddText_Click" CommandParameter="callout" Style="{StaticResource AddTool}" ToolTip="A coloured note box">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="3" Height="13" Background="#378add" Margin="0,0,6,0" />
+                            <TextBlock Text="Callout" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Click="AddText_Click" CommandParameter="line" Style="{StaticResource AddTool}" ToolTip="A dividing line">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe15b;" />
+                            <TextBlock Text="Line" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}">
-                    <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="2">
+                <Button Click="Export_Click" Style="{StaticResource PrimaryButton}" Height="32" Padding="12,0" HorizontalAlignment="Right"
+                        t:Ui.CornerRadius="9" IsEnabled="{Binding CanExport}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
+                        <TextBlock Text="Export PDF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- ============ second bar: page settings, or formatting while typing ============ -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceAlt}" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1"
+                MinHeight="42" Padding="12,6">
+            <Grid>
+                <!-- page settings -->
+                <WrapPanel VerticalAlignment="Center" Visibility="{Binding IsEditing, Converter={StaticResource BoolToVisInv}}">
+                    <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="2" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <Button Click="Dark_Click" Content="Dark" FontSize="11.5" FontWeight="SemiBold">
                                 <Button.Style>
@@ -117,10 +157,21 @@
                         </StackPanel>
                     </Border>
 
-                    <CheckBox Content="Titles" IsChecked="{Binding Titles, Mode=OneWay}" Click="Titles_Click"
-                              Foreground="{StaticResource TextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="14,0,0,0" />
+                    <CheckBox Content="Section titles" IsChecked="{Binding Titles, Mode=OneWay}" Click="Titles_Click"
+                              Foreground="{StaticResource TextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="16,0,0,0" />
 
-                    <StackPanel Orientation="Horizontal" Margin="14,0,0,0">
+                    <Border Style="{StaticResource BarDivider}" Margin="14,0" />
+                    <CheckBox Content="Header" IsChecked="{Binding Header, Mode=OneWay}" Click="Header_Click"
+                              Foreground="{StaticResource TextSecondary}" FontSize="11.5" VerticalAlignment="Center" />
+                    <TextBox x:Name="HeaderBox" Style="{StaticResource InputBox}" Text="{Binding HeaderText, Mode=OneWay}" Width="200" Height="28"
+                             FontSize="12" Margin="8,0,0,0" Padding="8,0" VerticalContentAlignment="Center"
+                             t:Ui.Placeholder="{Binding HeaderPlaceholder}" IsEnabled="{Binding Header}"
+                             LostFocus="HeaderText_LostFocus" KeyDown="HeaderText_KeyDown" />
+                    <CheckBox Content="Page numbers" IsChecked="{Binding PageNumbers, Mode=OneWay}" Click="PageNumbers_Click"
+                              Foreground="{StaticResource TextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="16,0,0,0" />
+
+                    <Border Style="{StaticResource BarDivider}" Margin="14,0" />
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Click="ZoomOut_Click" Style="{StaticResource GhostIconButton}" ToolTip="Zoom out">
                             <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15b;" />
                         </Button>
@@ -131,36 +182,165 @@
                             <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
                         </Button>
                     </StackPanel>
+                </WrapPanel>
+
+                <!-- formatting, while a text box is open -->
+                <WrapPanel VerticalAlignment="Center" DataContext="{Binding Format}"
+                           Visibility="{Binding DataContext.IsEditing, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}">
+                    <Button Click="Style_Click" CommandParameter="title" Style="{StaticResource BarTool}" ToolTip="Title"
+                            Tag="{Binding CurrentStyle, Converter={StaticResource Equals}, ConverterParameter=title}">
+                        <TextBlock Text="Title" FontSize="12" FontWeight="Bold" />
+                    </Button>
+                    <Button Click="Style_Click" CommandParameter="h1" Style="{StaticResource BarTool}" ToolTip="Heading 1"
+                            Tag="{Binding CurrentStyle, Converter={StaticResource Equals}, ConverterParameter=h1}">
+                        <TextBlock Text="H1" FontSize="12" FontWeight="SemiBold" />
+                    </Button>
+                    <Button Click="Style_Click" CommandParameter="h2" Style="{StaticResource BarTool}" ToolTip="Heading 2"
+                            Tag="{Binding CurrentStyle, Converter={StaticResource Equals}, ConverterParameter=h2}">
+                        <TextBlock Text="H2" FontSize="12" FontWeight="SemiBold" />
+                    </Button>
+                    <Button Click="Style_Click" CommandParameter="normal" Style="{StaticResource BarTool}" ToolTip="Normal text"
+                            Tag="{Binding CurrentStyle, Converter={StaticResource Equals}, ConverterParameter=normal}">
+                        <TextBlock Text="Normal" FontSize="12" />
+                    </Button>
+
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="Smaller_Click" Style="{StaticResource BarTool}" ToolTip="Smaller">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe15b;" />
+                    </Button>
+                    <TextBlock Text="{Binding SizeLabel}" FontSize="12" MinWidth="26" TextAlignment="Center" VerticalAlignment="Center" />
+                    <Button Click="Bigger_Click" Style="{StaticResource BarTool}" ToolTip="Bigger">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe145;" />
+                    </Button>
+
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="Bold_Click" Style="{StaticResource BarTool}" Tag="{Binding IsBold}" ToolTip="Bold (Ctrl+B)">
+                        <TextBlock Text="B" FontSize="13" FontWeight="Bold" />
+                    </Button>
+                    <Button Click="Italic_Click" Style="{StaticResource BarTool}" Tag="{Binding IsItalic}" ToolTip="Italic (Ctrl+I)">
+                        <TextBlock Text="I" FontSize="13" FontStyle="Italic" FontFamily="Georgia" />
+                    </Button>
+                    <Button Click="Underline_Click" Style="{StaticResource BarTool}" Tag="{Binding IsUnderline}" ToolTip="Underline (Ctrl+U)">
+                        <TextBlock Text="U" FontSize="13" TextDecorations="Underline" />
+                    </Button>
+
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="ColorNone_Click" Style="{StaticResource BarTool}" ToolTip="Text colour: automatic">
+                        <TextBlock Text="A" FontSize="13" FontWeight="SemiBold" TextDecorations="Underline" />
+                    </Button>
+                    <ItemsControl ItemsSource="{Binding TextColors}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Click="Color_Click" Style="{StaticResource Flat}" Width="16" Height="16" Margin="2,0" t:Ui.CornerRadius="8" Focusable="False"
+                                        Background="{Binding Converter={StaticResource HexBrush}}" BorderThickness="1" BorderBrush="{StaticResource BorderHoverStrong}"
+                                        ToolTip="Text colour" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="HighlightNone_Click" Style="{StaticResource BarTool}" ToolTip="No highlight">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe23b;" />
+                    </Button>
+                    <ItemsControl ItemsSource="{Binding Highlights}" VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Click="Highlight_Click" Style="{StaticResource Flat}" Width="16" Height="16" Margin="2,0" t:Ui.CornerRadius="4" Focusable="False"
+                                        Background="{Binding Converter={StaticResource HexBrush}}" ToolTip="Highlight" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="Align_Click" CommandParameter="left" Style="{StaticResource BarTool}" ToolTip="Align left"
+                            Tag="{Binding CurrentAlignment, Converter={StaticResource Equals}, ConverterParameter=Left}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe236;" />
+                    </Button>
+                    <Button Click="Align_Click" CommandParameter="center" Style="{StaticResource BarTool}" ToolTip="Centre"
+                            Tag="{Binding CurrentAlignment, Converter={StaticResource Equals}, ConverterParameter=Center}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe234;" />
+                    </Button>
+                    <Button Click="Align_Click" CommandParameter="right" Style="{StaticResource BarTool}" ToolTip="Align right"
+                            Tag="{Binding CurrentAlignment, Converter={StaticResource Equals}, ConverterParameter=Right}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe237;" />
+                    </Button>
+
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="List_Click" CommandParameter="bullet" Style="{StaticResource BarTool}" ToolTip="Bullet list"
+                            Tag="{Binding CurrentList, Converter={StaticResource Equals}, ConverterParameter=bullet}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe241;" />
+                    </Button>
+                    <Button Click="List_Click" CommandParameter="number" Style="{StaticResource BarTool}" ToolTip="Numbered list"
+                            Tag="{Binding CurrentList, Converter={StaticResource Equals}, ConverterParameter=number}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe242;" />
+                    </Button>
+                    <Button Click="List_Click" CommandParameter="check" Style="{StaticResource BarTool}" ToolTip="Checklist"
+                            Tag="{Binding CurrentList, Converter={StaticResource Equals}, ConverterParameter=check}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe834;" />
+                    </Button>
+
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="InsertTable_Click" Style="{StaticResource BarTool}" ToolTip="Insert a table here">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe265;" />
+                    </Button>
+                    <Button Click="Callout_Click" CommandParameter="note" Style="{StaticResource BarTool}" ToolTip="Note box">
+                        <Border Width="12" Height="14" Background="#e6f1fb" BorderBrush="#378add" BorderThickness="3,0,0,0" />
+                    </Button>
+                    <Button Click="Callout_Click" CommandParameter="important" Style="{StaticResource BarTool}" ToolTip="Important box">
+                        <Border Width="12" Height="14" Background="#faeeda" BorderBrush="#ba7517" BorderThickness="3,0,0,0" />
+                    </Button>
+                    <Button Click="Callout_Click" CommandParameter="tip" Style="{StaticResource BarTool}" ToolTip="Tip box">
+                        <Border Width="12" Height="14" Background="#eaf3de" BorderBrush="#639922" BorderThickness="3,0,0,0" />
+                    </Button>
+                    <Button Click="Divider_Click" Style="{StaticResource BarTool}" ToolTip="Dividing line">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe15b;" />
+                    </Button>
+                    <Button Click="PageBreak_Click" Style="{StaticResource BarTool}" ToolTip="Continue on the next page (Ctrl+Enter)">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xeaca;" />
+                    </Button>
+
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding InTable, Converter={StaticResource BoolToVis}}">
+                        <Border Style="{StaticResource BarDivider}" />
+                        <Button Click="RowAbove_Click" Style="{StaticResource BarTool}" Content="Row ↑" FontSize="11.5" ToolTip="Add a row above" />
+                        <Button Click="RowBelow_Click" Style="{StaticResource BarTool}" Content="Row ↓" FontSize="11.5" ToolTip="Add a row below" />
+                        <Button Click="ColumnLeft_Click" Style="{StaticResource BarTool}" Content="Col ←" FontSize="11.5" ToolTip="Add a column to the left" />
+                        <Button Click="ColumnRight_Click" Style="{StaticResource BarTool}" Content="Col →" FontSize="11.5" ToolTip="Add a column to the right" />
+                        <Button Click="DeleteRow_Click" Style="{StaticResource BarTool}" Content="− Row" FontSize="11.5" ToolTip="Delete this row" t:Ui.HoverForeground="{StaticResource Danger}" />
+                        <Button Click="DeleteColumn_Click" Style="{StaticResource BarTool}" Content="− Col" FontSize="11.5" ToolTip="Delete this column" t:Ui.HoverForeground="{StaticResource Danger}" />
                     </StackPanel>
 
-                    <Button Click="Export_Click" Style="{StaticResource PrimaryButton}" Height="32" Padding="12,0"
-                            t:Ui.CornerRadius="9" Margin="14,0,0,0" IsEnabled="{Binding CanExport}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
-                            <TextBlock Text="Export PDF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
-                        </StackPanel>
+                    <Border Style="{StaticResource BarDivider}" />
+                    <Button Click="Done_Click" Style="{StaticResource BarTool}" Padding="10,0" ToolTip="Finish typing (Esc)"
+                            Background="{StaticResource Light}" Foreground="{StaticResource OnLight}" t:Ui.HoverBackground="{StaticResource TextStrong}">
+                        <TextBlock Text="Done" FontSize="12" FontWeight="SemiBold" />
                     </Button>
-                </StackPanel>
+                </WrapPanel>
             </Grid>
         </Border>
 
+        <!-- ============ pages ============ -->
         <Grid>
-            <v:DocumentEditorView DataContext="{Binding Document}"
-                                  Visibility="{Binding DataContext.IsDocument, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+            <ex:PageBoard x:Name="Board" />
 
-            <ex:PageBoard x:Name="Board" Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}" />
+            <!-- the editor sits over the text box being typed in -->
+            <Canvas x:Name="Overlay" ClipToBounds="True">
+                <Border x:Name="EditorFrame" Visibility="Collapsed" BorderBrush="#378add" BorderThickness="1.5" Margin="-3">
+                    <RichTextBox x:Name="Editor" Margin="1.5" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled"
+                                 FocusVisualStyle="{x:Null}" Background="Transparent" />
+                </Border>
+            </Canvas>
 
             <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16,0,16,12"
-                    Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}"
                     Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
-                    CornerRadius="8" Padding="10,5">
+                    CornerRadius="8" Padding="10,5" IsHitTestVisible="False">
                 <TextBlock FontSize="11" Foreground="#a9adb2" TextWrapping="Wrap">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Setter Property="Text" Value="{Binding LastExport}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding LastExport}" Value="">
-                                    <Setter Property="Text" Value="Drag to move · corners to resize · Alt turns snapping off · Delete removes" />
+                                    <Setter Property="Text" Value="Drag to move · edges and corners resize · double-click text to type · Alt turns snapping off · Delete removes" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

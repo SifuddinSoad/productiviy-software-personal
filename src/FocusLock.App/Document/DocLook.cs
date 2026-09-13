@@ -6,22 +6,13 @@ using Fonts = FocusLock.App.Board.Fonts;
 
 namespace FocusLock.App.Document;
 
-/// <summary>How a document looks: page geometry, paragraph styles and block colours, in one place.</summary>
+/// <summary>How text boxes look: paragraph styles and block colours, in one place.</summary>
 internal static class DocLook
 {
     /// <summary>WPF lays out in 1/96 inch; the document is specified in points.</summary>
     public const double DipPerPoint = 96.0 / 72.0;
 
-    public const double MarginPt = 56;
-    public const double HeaderBaselinePt = 32;
-    public const double FooterBaselinePt = 26;   // from the bottom edge
-
     public static double Dip(double points) => points * DipPerPoint;
-
-    public static (double W, double H) PageDip(bool landscape) =>
-        landscape ? (Dip(842), Dip(595)) : (Dip(595), Dip(842));
-
-    public static double TextWidthDip(bool landscape) => PageDip(landscape).W - 2 * Dip(MarginPt);
 
     public static FontFamily TextFont => Fonts.Sans;
 
@@ -66,12 +57,6 @@ internal static class DocLook
         CalloutTone.Tip => (HexBrush.FromHex("#eaf3de"), HexBrush.FromHex("#639922")),
         _ => (HexBrush.FromHex("#e6f1fb"), HexBrush.FromHex("#378add")),
     };
-
-    /// <summary>Paper colours offered in Page setup.</summary>
-    public static readonly (string Name, string Hex)[] Papers =
-    [
-        ("White", "#ffffff"), ("Cream", "#fbf7ee"), ("Grey", "#f3f4f6"), ("Mint", "#eef7f1"), ("Sky", "#eef4fb"), ("Dark", "#121315"),
-    ];
 
     public static readonly string[] TextColors = ["#17181a", "#7f8489", "#c0392b", "#d35400", "#b7950b", "#1e8449", "#1f6fb2", "#7d3c98"];
     public static readonly string[] Highlights = ["#fff2a8", "#ffd9b3", "#d4f5d0", "#d6e9ff", "#f6d6f0"];

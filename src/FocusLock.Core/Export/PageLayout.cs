@@ -1,4 +1,5 @@
 using FocusLock.Core.Board;
+using FocusLock.Core.Document;
 using FocusLock.Core.Models;
 
 namespace FocusLock.Core.Export;
@@ -102,16 +103,16 @@ public static class PageLayout
     }
 
     /// <summary>
-    /// Makes a session's layout whole: at least one page, and every section on a page that exists.
-    /// Sessions from before pages had none of this, so their sections are placed in list order.
+    /// Makes a session's layout whole: at least one page, and every section and text box on a page
+    /// that exists. Sessions from before pages had none of this, so their sections are placed in list
+    /// order; text written in the old Document mode becomes a text box on a page of its own.
     /// </summary>
     public static void Complete(Session session)
     {
+        MoveLegacyDocument(session);
+
         if (session.Pages.Count == 0 && session.Extracts.Count == 0)
-        {
             session.Pages.Add(new PdfPage { Id = Ids.New("pg") });
-            return;
-        }
 
         var pageIds = session.Pages.Select(p => p.Id).ToHashSet();
         foreach (var item in session.Extracts.Where(e => !pageIds.Contains(e.PageId)).ToList())
@@ -119,5 +120,57 @@ public static class PageLayout
             Place(session, item);
             pageIds.Add(item.PageId);
         }
+        foreach (var text in session.TextItems.Where(t => !pageIds.Contains(t.PageId)))
+        {
+            text.PageId = session.Pages[^1].Id;
+            Clamp(text, session.Pages[^1]);
+        }
+    }
+
+    static void MoveLegacyDocument(Session session)
+    {
+        if (session.LegacyDocument is not { } legacy) return;
+        session.LegacyDocument = null;
+
+        session.PdfHeader |= legacy.ShowHeader;
+        session.PdfPageNumbers |= legacy.ShowPageNumbers;
+        if (session.PdfHeaderText.Length == 0) session.PdfHeaderText = legacy.HeaderText;
+
+        // pictures already live on the pages as sections; only the words need a home
+        var blocks = legacy.Blocks.Where(b => b is not SectionBlock).ToList();
+        if (Document.DocOps.IsBlank(blocks)) return;
+
+        var page = new PdfPage { Id = Ids.New("pg") };
+        session.Pages.Add(page);
+        session.TextItems.Add(new TextItem
+        {
+            Id = Ids.New("t"), PageId = page.Id, PageX = Margin, PageY = Margin, PageW = A4Short - 2 * Margin, Blocks = blocks,
+        });
+    }
+
+    // ---------------------------------------------------------------- text boxes
+
+    /// <summary>A text box is never narrower than this, nor its top closer to the page's bottom edge.</summary>
+    public const double MinTextWidth = 60;
+    public const double MinTextRoom = 24;
+
+    /// <summary>Room kept at the top of a page for the header, and at the bottom for page numbers.</summary>
+    public const double HeaderBand = 40;
+    public const double FooterBand = 34;
+
+    /// <summary>Where text may run on a page: from below the header to above the page numbers, or the margins.</summary>
+    public static (double Top, double Bottom) TextArea(Session session, PdfPage page)
+    {
+        var (_, ph) = SizeOf(page);
+        return (session.PdfHeader ? HeaderBand : Margin, ph - (session.PdfPageNumbers ? FooterBand : Margin));
+    }
+
+    /// <summary>Keeps a text box's left edge and width on its page and leaves room below its top for at least a line.</summary>
+    public static void Clamp(TextItem item, PdfPage page)
+    {
+        var (pw, ph) = SizeOf(page);
+        item.PageW = Math.Clamp(item.PageW, MinTextWidth, pw);
+        item.PageX = Math.Clamp(item.PageX, 0, pw - item.PageW);
+        item.PageY = Math.Clamp(item.PageY, 0, ph - Margin - MinTextRoom);
     }
 }
