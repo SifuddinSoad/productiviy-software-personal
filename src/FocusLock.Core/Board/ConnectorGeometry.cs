@@ -44,12 +44,23 @@ public static class ConnectorGeometry
         return $"M {Num.F1(tip.X)} {Num.F1(tip.Y)} L {Num.F1(p1.X)} {Num.F1(p1.Y)} L {Num.F1(p2.X)} {Num.F1(p2.Y)} Z ";
     }
 
-    public static ConnectorPath Compute(Connector c, BoardObject from, BoardObject to)
+    static Pt Anchor(BoardObject? o, double[]? pt) =>
+        o is not null ? Bounds.Of(o).Center : new Pt(pt?[0] ?? 0, pt?[1] ?? 0);
+
+    /// <summary>Both ends of a connector, for hit testing and for drawing the line.</summary>
+    public static (Pt From, Pt To) Endpoints(Connector c, BoardObject? from, BoardObject? to) =>
+        (Anchor(from, c.FromPt), Anchor(to, c.ToPt));
+
+    /// <summary>
+    /// <paramref name="from"/> or <paramref name="to"/> may be null, meaning that end is a free
+    /// point on the canvas rather than an object.
+    /// </summary>
+    public static ConnectorPath Compute(Connector c, BoardObject? from, BoardObject? to)
     {
-        var bFrom = Bounds.Of(from);
-        var bTo = Bounds.Of(to);
-        var a = Attach(from, bTo.Center.X, bTo.Center.Y, 2);
-        var b = Attach(to, bFrom.Center.X, bFrom.Center.Y, 10);
+        var (fromAnchor, toAnchor) = Endpoints(c, from, to);
+        // An object end leaves its outline aimed at the other end; a free end is the point itself.
+        var a = from is not null ? Attach(from, toAnchor.X, toAnchor.Y, 2) : fromAnchor;
+        var b = to is not null ? Attach(to, fromAnchor.X, fromAnchor.Y, 10) : toAnchor;
 
         string data;
         double angEnd, angStart;

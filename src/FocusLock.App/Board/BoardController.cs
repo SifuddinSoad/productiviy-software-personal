@@ -52,6 +52,7 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
     public Rect? Marquee { get; private set; }
     public List<Pt>? PolyPoints { get; private set; }
     public string? ConnectorFrom { get; private set; }
+    public Pt? ConnectorFromPoint { get; private set; }
     public Pt MouseWorld { get; private set; }
     public bool IsResizing { get; private set; }
     public bool SpaceHeld { get; set; }
@@ -375,7 +376,7 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
 
         if (CurrentTool == Tool.Connector)
         {
-            HandleConnectorClick(hit, world);
+            StartConnector(hit, world);
             return;
         }
 
@@ -581,46 +582,79 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         Notify();
     }
 
-    void HandleConnectorClick(BoardObject? hit, Pt world)
+    /// <summary>
+    /// Either end may be an object or a bare point, so a connector can be drawn shape-to-shape,
+    /// shape-to-empty-space, or freely between two points. Drag to draw; or click one end then
+    /// click the other.
+    /// </summary>
+    void StartConnector(BoardObject? hit, Pt world)
     {
-        if (hit is null)
+        // Second click of a click-then-click pair.
+        if (ConnectorFrom is not null || ConnectorFromPoint is not null)
         {
-            ConnectorFrom = null;
-            Notify();
-            return;
-        }
-
-        if (ConnectorFrom is null)
-        {
-            ConnectorFrom = hit.Id;
-            Notify();
-            var moved = false;
-            Drag((_, _) => { moved = true; Notify(); }, (w, _) =>
+            if (hit is not null && hit.Id == ConnectorFrom)
             {
-                if (!moved) return;
-                if (Bounds.ObjectAt(Doc.Objs, w) is { } target && target.Id != hit.Id)
-                    MakeConnector(hit.Id, target.Id);
-            });
+                CancelConnector();
+                return;
+            }
+            MakeConnector(ConnectorFrom, ConnectorFromPoint, hit?.Id, hit is null ? world : null);
             return;
         }
 
-        if (ConnectorFrom == hit.Id)
+        var fromId = hit?.Id;
+        Pt? fromPoint = hit is null ? world : null;
+        ConnectorFrom = fromId;
+        ConnectorFromPoint = fromPoint;
+        MouseWorld = world;
+        Notify();
+
+        var moved = false;
+        Drag((_, _) => { moved = true; Notify(); }, (w, _) =>
         {
-            ConnectorFrom = null;
-            Notify();
-            return;
-        }
-        MakeConnector(ConnectorFrom, hit.Id);
+            if (!moved)
+            {
+                // A plain click on empty canvas would otherwise leave a stray pending endpoint.
+                if (fromId is null) CancelConnector();
+                return;
+            }
+
+            var target = Bounds.ObjectAt(Doc.Objs, w);
+            if (target is not null && target.Id == fromId)
+            {
+                CancelConnector();
+                return;
+            }
+            if (target is null && (w - world).Length < 6)
+            {
+                CancelConnector();
+                return;
+            }
+            MakeConnector(fromId, fromPoint, target?.Id, target is null ? w : null);
+        });
     }
 
-    void MakeConnector(string from, string to)
+    void CancelConnector()
+    {
+        ConnectorFrom = null;
+        ConnectorFromPoint = null;
+        Notify();
+    }
+
+    void MakeConnector(string? fromId, Pt? fromPoint, string? toId, Pt? toPoint)
     {
         Editor.AddConnector(new Connector
         {
-            Id = Ids.New("c"), From = from, To = to,
-            Style = ConnStyle, Arrows = ConnArrows, Dash = ConnDash,
+            Id = Ids.New("c"),
+            From = fromId ?? "",
+            To = toId ?? "",
+            FromPt = fromPoint is { } f ? [f.X, f.Y] : null,
+            ToPt = toPoint is { } t ? [t.X, t.Y] : null,
+            Style = ConnStyle,
+            Arrows = ConnArrows,
+            Dash = ConnDash,
         });
         ConnectorFrom = null;
+        ConnectorFromPoint = null;
         Notify();
     }
 
@@ -768,12 +802,22 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         var byId = Doc.Objs.ToDictionary(o => o.Id);
         foreach (var c in Doc.Conns)
         {
-            if (!byId.TryGetValue(c.From, out var a) || !byId.TryGetValue(c.To, out var b)) continue;
-            var pa = Bounds.Of(a).Center;
-            var pb = Bounds.Of(b).Center;
+            if (!TryResolve(c, byId, out var from, out var to)) continue;
+            var (pa, pb) = ConnectorGeometry.Endpoints(c, from, to);
             if (DistanceToSegment(world, pa, pb) < 10) return c.Id;
         }
         return null;
+    }
+
+    /// <summary>False when an end points at an object that is no longer on the board.</summary>
+    public static bool TryResolve(Connector c, IReadOnlyDictionary<string, BoardObject> byId,
+        out BoardObject? from, out BoardObject? to)
+    {
+        from = null;
+        to = null;
+        if (!c.FromIsFree && !byId.TryGetValue(c.From, out from)) return false;
+        if (!c.ToIsFree && !byId.TryGetValue(c.To, out to)) return false;
+        return true;
     }
 
     static double DistanceToSegment(Pt p, Pt a, Pt b)

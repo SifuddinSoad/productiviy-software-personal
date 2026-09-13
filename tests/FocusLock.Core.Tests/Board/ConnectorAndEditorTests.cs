@@ -77,6 +77,48 @@ public class ConnectorGeometryTests
         var path = ConnectorGeometry.Compute(new Connector { Style = "" }, Rect("a", 0, 0), Rect("b", 400, 0));
         Assert.Contains(" C ", path.Data);
     }
+
+    [Fact]
+    public void A_free_end_starts_exactly_at_its_point()
+    {
+        var c = new Connector { From = "", FromPt = [10, 20], To = "b", Style = "straight", Arrows = "none" };
+
+        var path = ConnectorGeometry.Compute(c, null, Rect("b", 300, 300));
+
+        Assert.StartsWith("M 10.0 20.0 L", path.Data);
+    }
+
+    [Fact]
+    public void Both_ends_can_be_free()
+    {
+        var c = new Connector { FromPt = [0, 0], ToPt = [100, 50], Style = "straight", Arrows = "none" };
+
+        var path = ConnectorGeometry.Compute(c, null, null);
+
+        Assert.Equal("M 0.0 0.0 L 100.0 50.0", path.Data);
+    }
+
+    [Fact]
+    public void An_object_end_still_leaves_its_outline_when_the_other_end_is_free()
+    {
+        var c = new Connector { From = "a", ToPt = [500, 30], Style = "straight", Arrows = "none" };
+
+        var path = ConnectorGeometry.Compute(c, Rect("a", 0, 0, 100, 60), null);
+
+        // leaves the right edge (x = 100) plus the 2 px stand-off, aimed at the free point
+        Assert.StartsWith("M 102.0 30.0", path.Data);
+    }
+
+    [Fact]
+    public void Endpoints_report_centres_for_objects_and_the_point_for_free_ends()
+    {
+        var c = new Connector { From = "a", ToPt = [400, 90] };
+
+        var (from, to) = ConnectorGeometry.Endpoints(c, Rect("a", 0, 0, 100, 60), null);
+
+        Assert.Equal(new Pt(50, 30), from);
+        Assert.Equal(new Pt(400, 90), to);
+    }
 }
 
 public class EraserTests

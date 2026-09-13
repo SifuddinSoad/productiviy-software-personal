@@ -23,8 +23,13 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
     public ObservableCollection<ToolButton> Tools { get; } = [];
     public ObservableCollection<FlyoutItem> ShapeKinds { get; } = [];
+    /// <summary>Route and end styles applied to the next connector you draw.</summary>
     public ObservableCollection<FlyoutItem> ConnectorStyles { get; } = [];
     public ObservableCollection<FlyoutItem> ArrowModes { get; } = [];
+
+    /// <summary>The same choices for the connector that is currently selected.</summary>
+    public ObservableCollection<FlyoutItem> SelectedStyles { get; } = [];
+    public ObservableCollection<FlyoutItem> SelectedArrows { get; } = [];
     public ObservableCollection<Swatch> StickySwatches { get; } = [];
     public ObservableCollection<Swatch> FillSwatches { get; } = [];
     public ObservableCollection<PlanCard> Plans { get; } = [];
@@ -97,6 +102,10 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         foreach (var a in ArrowModes) a.Active = a.Id == Controller.ConnArrows;
         foreach (var s in StickySwatches) s.Active = s.Color == Controller.StickyColor;
 
+        var selected = Controller.Doc.Conns.FirstOrDefault(c => c.Id == Controller.SelectedConnector);
+        foreach (var s in SelectedStyles) s.Active = selected is not null && s.Id == (selected.Style is "" ? "curve" : selected.Style);
+        foreach (var a in SelectedArrows) a.Active = selected is not null && a.Id == (selected.Arrows is "" ? "end" : selected.Arrows);
+
         var single = Controller.SingleSelection;
         foreach (var s in FillSwatches) s.Active = single?.Fill == s.Color;
 
@@ -120,6 +129,8 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         OnPropertyChanged(nameof(SelectionVotes));
         OnPropertyChanged(nameof(IsMultiSelection));
         OnPropertyChanged(nameof(SelectedConnectorDashLabel));
+        OnPropertyChanged(nameof(SelectedConnectorDash));
+        OnPropertyChanged(nameof(NewConnectorDash));
         OnPropertyChanged(nameof(IsPlansPanel));
         OnPropertyChanged(nameof(IsPromptPanel));
         OnPropertyChanged(nameof(IsPropsPanel));
@@ -170,7 +181,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
             (Tool.Pen, Icons.Draw, "Pen (P)", "Drag to draw freehand", true),
             (Tool.Eraser, Icons.InkEraser, "Eraser (E)", "Rub over ink to erase part of a stroke · [ and ] resize the tip", false),
             (Tool.Shape, Icons.Square, "Shape (R)", "Drag to draw · pick a form above", false),
-            (Tool.Connector, Icons.ArrowRightAlt, "Connector (X)", "Drag shape to shape · route, ends and dash set above", false),
+            (Tool.Connector, Icons.ArrowRightAlt, "Connector (X)", "Drag shape to shape, or anywhere on empty canvas · route, ends and dash set above", false),
             (Tool.Sticky, Icons.StickyNote, "Sticky note (N)", "Click to drop a note · pick a colour above", false),
             (Tool.Text, Icons.Title, "Text (T)", "Click to place a text block", false),
             (Tool.Frame, Icons.CropFree, "Frame (F)", "Drag to enclose a section", false),
@@ -205,16 +216,23 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
             ("straight", "Straight", "M 2 14 L 18 4"),
         ];
         foreach (var (id, label, icon) in styles)
+        {
             ConnectorStyles.Add(new FlyoutItem(id, label, icon, () => Controller.SetConnStyle(id))
             { Active = id == Controller.ConnStyle });
+            SelectedStyles.Add(new FlyoutItem(id, label, icon, () => Controller.SetConnectorStyle(id)));
+        }
 
         (string Id, string Short, string Label)[] arrows =
         [
             ("end", "→", "Arrow at end"), ("both", "↔", "Arrows both ends"), ("none", "—", "No arrows"),
         ];
         foreach (var (id, shortLabel, label) in arrows)
+        {
             ArrowModes.Add(new FlyoutItem(id, label, "", () => Controller.SetConnArrows(id))
             { Active = id == Controller.ConnArrows, Text = shortLabel });
+            SelectedArrows.Add(new FlyoutItem(id, label, "", () => Controller.SetConnectorArrows(id))
+            { Text = shortLabel });
+        }
 
         foreach (var c in StickyColors)
             StickySwatches.Add(new Swatch(c, () => Controller.SetStickyColor(c)) { Active = c == Controller.StickyColor });
@@ -249,8 +267,13 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public int SelectionVotes => Controller.SingleSelection?.Votes
         ?? Controller.SelectedObjects.Sum(o => o.Votes);
 
-    public string SelectedConnectorDashLabel =>
-        Controller.Doc.Conns.FirstOrDefault(c => c.Id == Controller.SelectedConnector)?.Dash == true ? "Dashed" : "Solid";
+    public bool SelectedConnectorDash =>
+        Controller.Doc.Conns.FirstOrDefault(c => c.Id == Controller.SelectedConnector)?.Dash == true;
+
+    public string SelectedConnectorDashLabel => SelectedConnectorDash ? "Dashed" : "Solid";
+
+    /// <summary>Whether the next connector you draw will be dashed.</summary>
+    public bool NewConnectorDash => Controller.ConnDash;
 
     // ---------------------------------------------------------------- plans
 

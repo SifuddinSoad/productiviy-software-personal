@@ -57,14 +57,24 @@ public sealed class BoardObject
     }
 }
 
+/// <summary>
+/// A line between two endpoints. An endpoint is either an object (<see cref="From"/>/<see cref="To"/>
+/// hold its id and the line sticks to its outline) or a free point on the canvas
+/// (<see cref="FromPt"/>/<see cref="ToPt"/>, used when the id is empty).
+/// </summary>
 public sealed class Connector
 {
     public string Id { get; set; } = "";
     public string From { get; set; } = "";
     public string To { get; set; } = "";
+    public double[]? FromPt { get; set; }
+    public double[]? ToPt { get; set; }
     public string Style { get; set; } = "curve";   // curve | elbow | straight
     public string Arrows { get; set; } = "end";    // end | both | none
     public bool Dash { get; set; }
+
+    public bool FromIsFree => string.IsNullOrEmpty(From);
+    public bool ToIsFree => string.IsNullOrEmpty(To);
 }
 
 public sealed class Stroke

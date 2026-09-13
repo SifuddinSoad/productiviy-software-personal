@@ -136,7 +136,7 @@ public sealed class BoardCanvas : Canvas
         var byId = c.Doc.Objs.ToDictionary(o => o.Id);
         foreach (var conn in c.Doc.Conns)
         {
-            if (!byId.TryGetValue(conn.From, out var a) || !byId.TryGetValue(conn.To, out var b)) continue;
+            if (!BoardController.TryResolve(conn, byId, out var a, out var b)) continue;
             var path = ConnectorGeometry.Compute(conn, a, b);
             var selected = c.SelectedConnector == conn.Id;
             var thickness = selected ? 3.2 : 1.7;
@@ -147,11 +147,17 @@ public sealed class BoardCanvas : Canvas
             if (path.Heads != "M 0 0") dc.DrawGeometry(B.Connector, null, Geometry.Parse(path.Heads));
         }
 
-        // rubber band while dragging a new connector
+        // rubber band while a connector is being drawn, from an object or from a bare point
+        CorePt? start = null;
         if (c.ConnectorFrom is { } fromId && byId.TryGetValue(fromId, out var from))
+            start = ConnectorGeometry.Attach(from, c.MouseWorld.X, c.MouseWorld.Y, 2);
+        else if (c.ConnectorFromPoint is { } p)
+            start = p;
+
+        if (start is { } s)
         {
-            var p = ConnectorGeometry.Attach(from, c.MouseWorld.X, c.MouseWorld.Y, 2);
-            dc.DrawLine(B.Dashed(B.Connector, 1.5, 6, 5), new Point(p.X, p.Y), new Point(c.MouseWorld.X, c.MouseWorld.Y));
+            dc.DrawLine(B.Dashed(B.Connector, 1.5, 6, 5), new Point(s.X, s.Y), new Point(c.MouseWorld.X, c.MouseWorld.Y));
+            dc.DrawEllipse(B.Canvas, B.Frozen(new Pen(B.Connector, 1.5)), new Point(s.X, s.Y), 3.5, 3.5);
         }
     }
 
