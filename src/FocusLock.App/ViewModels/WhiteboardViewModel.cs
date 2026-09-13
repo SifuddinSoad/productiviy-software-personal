@@ -32,6 +32,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public ObservableCollection<FlyoutItem> SelectedArrows { get; } = [];
     public ObservableCollection<Swatch> StickySwatches { get; } = [];
     public ObservableCollection<Swatch> FillSwatches { get; } = [];
+    public ObservableCollection<Swatch> TextSwatches { get; } = [];
     public ObservableCollection<PlanCard> Plans { get; } = [];
     public ObservableCollection<PromptCard> Prompts { get; } = [];
 
@@ -45,6 +46,8 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
     static readonly string[] StickyColors = ["#f2d06b", "#a8d5c2", "#aec8e8", "#f0b8ae", "#c9bce4", "#eae7e1"];
     static readonly string[] Fills = ["#ffffff", "#eae7e1", "#f2d06b", "#a8d5c2", "#aec8e8", "#f0b8ae", "#c9bce4"];
+    static readonly string[] TextColors =
+        ["#17181a", "#e9e9e7", "#ffffff", "#7f8489", "#f2d06b", "#a8d5c2", "#aec8e8", "#f0b8ae", "#c9bce4"];
 
     public WhiteboardViewModel(Session session, SessionRuntime? runtime, bool readOnly)
     {
@@ -109,6 +112,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
         var single = Controller.SingleSelection;
         foreach (var s in FillSwatches) s.Active = single?.Fill == s.Color;
+        foreach (var s in TextSwatches) s.Active = single?.TextColor == s.Color;
 
         if (Controller.SelectedIds.Count > 0) Panel = "props";
         else if (Controller.SelectedConnectorIds.Count > 0) Panel = "conn";
@@ -127,6 +131,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         OnPropertyChanged(nameof(EraserLabel));
         OnPropertyChanged(nameof(EraserSize));
         OnPropertyChanged(nameof(SelectionTitle));
+        OnPropertyChanged(nameof(TextColorIsAuto));
         OnPropertyChanged(nameof(SelectionVotes));
         OnPropertyChanged(nameof(IsMultiSelection));
         OnPropertyChanged(nameof(SelectedConnectorDashLabel));
@@ -250,6 +255,9 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
         foreach (var c in Fills)
             FillSwatches.Add(new Swatch(c, () => Controller.SetFill(c)));
+
+        foreach (var c in TextColors)
+            TextSwatches.Add(new Swatch(c, () => Controller.SetTextColor(c)));
     }
 
     // ---------------------------------------------------------------- props panel
@@ -277,6 +285,11 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
     public int SelectionVotes => Controller.SingleSelection?.Votes
         ?? Controller.SelectedObjects.Sum(o => o.Votes);
+
+    /// <summary>No explicit text colour: the label follows the fill on its own.</summary>
+    public bool TextColorIsAuto => Controller.SelectedObjects.All(o => string.IsNullOrEmpty(o.TextColor));
+
+    public void ResetTextColor() => Controller.SetTextColor(null);
 
     public bool SelectedConnectorDash => Controller.SelectedConnectors.FirstOrDefault()?.Dash == true;
 

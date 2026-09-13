@@ -265,6 +265,14 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         Notify();
     }
 
+    /// <summary>Null goes back to the automatic colour that follows the fill.</summary>
+    public void SetTextColor(string? color)
+    {
+        if (ReadOnly || SelectedIds.Count == 0) return;
+        Editor.SetTextColor([.. SelectedIds], color);
+        Notify();
+    }
+
     public void AddVotes(int delta)
     {
         if (ReadOnly || SelectedIds.Count == 0) return;

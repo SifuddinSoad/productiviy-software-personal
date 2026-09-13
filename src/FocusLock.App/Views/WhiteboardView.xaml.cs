@@ -56,6 +56,8 @@ public partial class WhiteboardView : UserControl
 
     // ---- props ----
     void Fill_Click(object s, RoutedEventArgs e) => Item<Swatch>(s)?.Pick();
+    void TextColor_Click(object s, RoutedEventArgs e) => Item<Swatch>(s)?.Pick();
+    void AutoTextColor_Click(object s, RoutedEventArgs e) => Vm?.ResetTextColor();
     void VoteUp_Click(object s, RoutedEventArgs e) => C?.AddVotes(1);
     void VoteDown_Click(object s, RoutedEventArgs e) => C?.AddVotes(-1);
     void Duplicate_Click(object s, RoutedEventArgs e) => C?.DuplicateSelection();

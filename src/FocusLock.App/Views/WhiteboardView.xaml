@@ -368,6 +368,52 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
+                            <Grid Margin="0,18,0,0">
+                                <TextBlock Style="{StaticResource SectionLabel}" Text="TEXT" FontSize="10.5" HorizontalAlignment="Left" />
+                                <Button Click="AutoTextColor_Click" HorizontalAlignment="Right" ToolTip="Follow the fill automatically">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                            <Setter Property="Height" Value="18" />
+                                            <Setter Property="t:Ui.CornerRadius" Value="5" />
+                                            <Setter Property="Background" Value="{StaticResource SurfaceField}" />
+                                            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                                            <Setter Property="t:Ui.HoverBackground" Value="{StaticResource SurfaceFieldHover}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding TextColorIsAuto}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource Light}" />
+                                                    <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                    <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <TextBlock Text="Auto" FontSize="10" FontWeight="SemiBold" Margin="7,0" VerticalAlignment="Center" />
+                                </Button>
+                            </Grid>
+                            <ItemsControl ItemsSource="{Binding TextSwatches}" Margin="0,9,0,0">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:Swatch}">
+                                        <Button Click="TextColor_Click" Width="28" Height="28" Margin="0,0,6,6"
+                                                t:Ui.CornerRadius="6" BorderThickness="2">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                                    <Setter Property="Background" Value="{StaticResource SurfaceField}" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Active}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource Light}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock Text="A" FontSize="14" FontWeight="Bold"
+                                                       Foreground="{Binding Color, Converter={StaticResource HexBrush}}" />
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
                             <StackPanel Margin="0,18,0,0" Visibility="{Binding IsMultiSelection, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Style="{StaticResource SectionLabel}" Text="ALIGN" FontSize="10.5" />
                                 <UniformGrid Columns="4" Margin="0,9,0,0">

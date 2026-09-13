@@ -124,11 +124,28 @@ public sealed class BoardCanvas : Canvas
     /// <summary>True while this text is live in the overlay editor, so the canvas must not draw it too.</summary>
     bool IsEditingText(BoardObject o, int cell = -1) => _editingId == o.Id && _editingCell == cell;
 
+    /// <summary>The object's own fill, or the default for its kind.</summary>
+    static string FillOf(BoardObject o, string fallback) =>
+        string.IsNullOrEmpty(o.Fill) ? fallback : o.Fill;
+
+    /// <summary>The chosen text colour, else one that reads against the fill.</summary>
+    static Brush TextBrush(BoardObject o, string background, string? untinted = null)
+    {
+        if (!string.IsNullOrEmpty(o.TextColor)) return Theme.HexBrush.FromHex(o.TextColor);
+        if (untinted is not null && string.IsNullOrEmpty(o.Fill)) return Theme.HexBrush.FromHex(untinted);
+        return Theme.HexBrush.FromHex(Palette.TextOn(background));
+    }
+
     void DrawFrame(DrawingContext dc, BoardObject o)
     {
-        dc.DrawRoundedRectangle(B.FrameFill, B.FramePen, new Rect(o.X, o.Y, o.W, o.H), 3, 3);
+        var fill = FillOf(o, "#16181b");
+        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), B.FramePen, new Rect(o.X, o.Y, o.W, o.H), 3, 3);
         if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
-            dc.DrawText(Ft(o.Text, Fonts.Sans, 11, FontWeights.SemiBold, B.FrameLabel), new Point(o.X, o.Y - 19));
+        {
+            // the label sits above the frame on the canvas, so it keeps the muted colour by default
+            var brush = string.IsNullOrEmpty(o.TextColor) ? B.FrameLabel : Theme.HexBrush.FromHex(o.TextColor);
+            dc.DrawText(Ft(o.Text, Fonts.Sans, 11, FontWeights.SemiBold, brush), new Point(o.X, o.Y - 19));
+        }
     }
 
     void DrawConnectors(DrawingContext dc, BoardController c)
@@ -169,19 +186,25 @@ public sealed class BoardCanvas : Canvas
         const double cellH = 32;
         var rect = new Rect(o.X, o.Y, o.W, rows * cellH);
 
-        dc.DrawRoundedRectangle(B.TableFill, B.TablePen, rect, 4, 4);
+        var fill = FillOf(o, "#1b1d20");
+        var header = Palette.Shade(fill, Palette.IsLight(fill) ? 0.92 : 1.18);
+        var lines = Theme.HexBrush.FromHex(Palette.Shade(fill, Palette.IsLight(fill) ? 0.85 : 1.45));
+        var linePen = B.Frozen(new Pen(lines, 1));
+        var textBrush = TextBrush(o, fill, B.Light.ToString());
+
+        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), B.TablePen, rect, 4, 4);
         for (var i = 0; i < rows * cols; i++)
         {
             var r = i / cols;
             var col = i % cols;
             var cell = new Rect(o.X + col * cellW, o.Y + r * cellH, cellW, cellH);
-            if (r == 0) dc.DrawRectangle(B.TableHeader, null, cell);
-            dc.DrawLine(B.CellPen, new Point(cell.Right, cell.Top), new Point(cell.Right, cell.Bottom));
-            dc.DrawLine(B.CellPen, new Point(cell.Left, cell.Bottom), new Point(cell.Right, cell.Bottom));
+            if (r == 0) dc.DrawRectangle(Theme.HexBrush.FromHex(header), null, cell);
+            dc.DrawLine(linePen, new Point(cell.Right, cell.Top), new Point(cell.Right, cell.Bottom));
+            dc.DrawLine(linePen, new Point(cell.Left, cell.Bottom), new Point(cell.Right, cell.Bottom));
 
             var text = o.Cells is { } cells && i < cells.Count ? cells[i] : "";
             if (text.Length == 0 || IsEditingText(o, i)) continue;
-            var ft = Ft(text, Fonts.Sans, 12, r == 0 ? FontWeights.SemiBold : FontWeights.Normal, B.Light, cellW - 18);
+            var ft = Ft(text, Fonts.Sans, 12, r == 0 ? FontWeights.SemiBold : FontWeights.Normal, textBrush, cellW - 18);
             ft.MaxLineCount = 1;
             ft.Trimming = TextTrimming.CharacterEllipsis;
             dc.DrawText(ft, new Point(cell.Left + 9, cell.Top + 7));
@@ -190,14 +213,15 @@ public sealed class BoardCanvas : Canvas
 
     void DrawShape(DrawingContext dc, BoardObject o)
     {
+        var fill = FillOf(o, "#ffffff");
         var geometry = Geometry.Parse(ShapeGeometry.Path(o, o.W, o.H));
         dc.PushTransform(new TranslateTransform(o.X, o.Y));
-        dc.DrawGeometry(Theme.HexBrush.FromHex(o.Fill ?? "#ffffff"), B.ShapePen, geometry);
+        dc.DrawGeometry(Theme.HexBrush.FromHex(fill), B.ShapePen, geometry);
 
         if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
         {
             var maxW = o.W * ShapeGeometry.TextWidthFactor(o);
-            var ft = Ft(o.Text, Fonts.Sans, 13, FontWeights.Medium, B.OnLight, maxW, TextAlignment.Center);
+            var ft = Ft(o.Text, Fonts.Sans, 13, FontWeights.Medium, TextBrush(o, fill), maxW, TextAlignment.Center);
             dc.DrawText(ft, new Point((o.W - maxW) / 2, (o.H - ft.Height) / 2));
         }
         dc.Pop();
@@ -224,11 +248,12 @@ public sealed class BoardCanvas : Canvas
             pushed = true;
         }
 
+        var fill = FillOf(o, "#f2d06b");
         dc.DrawRectangle(B.Shadow, null, new Rect(o.X + 2, o.Y + 6, o.W, o.H));
-        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(o.Fill ?? "#f2d06b"), null, new Rect(o.X, o.Y, o.W, o.H), 2, 2);
+        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), null, new Rect(o.X, o.Y, o.W, o.H), 2, 2);
 
         if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
-            dc.DrawText(Ft(o.Text, Fonts.Sans, 13.5, FontWeights.Medium, B.OnLight, o.W - 24), new Point(o.X + 12, o.Y + 12));
+            dc.DrawText(Ft(o.Text, Fonts.Sans, 13.5, FontWeights.Medium, TextBrush(o, fill), o.W - 24), new Point(o.X + 12, o.Y + 12));
 
         if (o.Votes > 0)
         {
@@ -246,21 +271,25 @@ public sealed class BoardCanvas : Canvas
     {
         if (string.IsNullOrEmpty(o.Text) || IsEditingText(o)) return;
         var weight = FontWeight.FromOpenTypeWeight(Math.Clamp(o.Weight ?? 600, 100, 900));
-        dc.DrawText(Ft(o.Text, Fonts.Sans, o.Size ?? 20, weight, B.Light, o.W), new Point(o.X, o.Y));
+        // free text sits on the canvas, so its own colour wins and the default stays light
+        var brush = string.IsNullOrEmpty(o.TextColor) ? B.Light : Theme.HexBrush.FromHex(o.TextColor);
+        dc.DrawText(Ft(o.Text, Fonts.Sans, o.Size ?? 20, weight, brush, o.W), new Point(o.X, o.Y));
     }
 
     void DrawPrompt(DrawingContext dc, BoardObject o)
     {
         var rect = new Rect(o.X, o.Y, o.W, 104);
+        var fill = FillOf(o, "#1c1e21");
         dc.DrawRectangle(B.Shadow, null, new Rect(rect.X + 2, rect.Y + 6, rect.Width, rect.Height));
-        dc.DrawRoundedRectangle(B.PromptFill, B.PromptPen, rect, 8, 8);
+        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), B.PromptPen, rect, 8, 8);
 
+        var label = Theme.HexBrush.FromHex(Palette.IsLight(fill) ? Palette.Shade(fill, 0.45) : "#9aa0a6");
         dc.DrawText(Ft(Theme.Icons.EditNote, Fonts.Icons, 14, FontWeights.Light, B.Yellow), new Point(rect.X + 12, rect.Y + 11));
-        dc.DrawText(Ft("PROMPT", Fonts.Mono, 9.5, FontWeights.Normal, B.PromptLabel), new Point(rect.X + 32, rect.Y + 13));
+        dc.DrawText(Ft("PROMPT", Fonts.Mono, 9.5, FontWeights.Normal, label), new Point(rect.X + 32, rect.Y + 13));
 
         if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
         {
-            var ft = Ft(o.Text, Fonts.Mono, 11.5, FontWeights.Normal, B.PromptText, o.W - 24);
+            var ft = Ft(o.Text, Fonts.Mono, 11.5, FontWeights.Normal, TextBrush(o, fill, B.PromptText.ToString()), o.W - 24);
             ft.MaxTextHeight = 64;
             ft.Trimming = TextTrimming.CharacterEllipsis;
             dc.DrawText(ft, new Point(rect.X + 12, rect.Y + 34));
@@ -412,7 +441,7 @@ public sealed class BoardCanvas : Canvas
             y = o.Y + _editingCell / cols * 32 + 7;
             w = cellW - 18;
             fontSize = 12;
-            fg = B.Light;
+            fg = TextBrush(o, FillOf(o, "#1b1d20"), B.Light.ToString());
         }
         else
         {
@@ -420,23 +449,27 @@ public sealed class BoardCanvas : Canvas
             {
                 case ObjKind.Sticky:
                     x = o.X + 12; y = o.Y + 12; w = o.W - 24; fontSize = 13.5;
+                    fg = TextBrush(o, FillOf(o, "#f2d06b"));
                     break;
                 case ObjKind.Text:
                     x = o.X; y = o.Y; w = o.W; fontSize = o.Size ?? 20;
                     weight = FontWeight.FromOpenTypeWeight(Math.Clamp(o.Weight ?? 600, 100, 900));
-                    fg = B.Light;
+                    fg = string.IsNullOrEmpty(o.TextColor) ? B.Light : Theme.HexBrush.FromHex(o.TextColor);
                     break;
                 case ObjKind.Prompt:
                     x = o.X + 12; y = o.Y + 34; w = o.W - 24; fontSize = 11.5;
-                    family = Fonts.Mono; fg = B.PromptText;
+                    family = Fonts.Mono;
+                    fg = TextBrush(o, FillOf(o, "#1c1e21"), B.PromptText.ToString());
                     break;
                 case ObjKind.Frame:
                     x = o.X; y = o.Y - 19; w = Math.Max(120, o.W / 2); fontSize = 11;
-                    weight = FontWeights.SemiBold; fg = B.FrameLabel;
+                    weight = FontWeights.SemiBold;
+                    fg = string.IsNullOrEmpty(o.TextColor) ? B.FrameLabel : Theme.HexBrush.FromHex(o.TextColor);
                     break;
                 default:
                     var maxW = o.W * ShapeGeometry.TextWidthFactor(o);
                     x = o.X + (o.W - maxW) / 2; y = o.Y + b.H / 2 - fontSizeGuess(13) / 2; w = maxW; fontSize = 13;
+                    fg = TextBrush(o, FillOf(o, "#ffffff"));
                     break;
             }
         }

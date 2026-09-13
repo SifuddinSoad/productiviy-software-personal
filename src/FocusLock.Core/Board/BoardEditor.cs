@@ -117,6 +117,13 @@ public sealed class BoardEditor(BoardDoc doc)
         foreach (var o in Doc.Objs.Where(o => ids.Contains(o.Id))) o.Fill = fill;
     }
 
+    /// <summary>Null restores the automatic colour that follows the fill.</summary>
+    public void SetTextColor(IReadOnlyCollection<string> ids, string? color)
+    {
+        Snapshot();
+        foreach (var o in Doc.Objs.Where(o => ids.Contains(o.Id))) o.TextColor = color;
+    }
+
     public void AddVotes(IReadOnlyCollection<string> ids, int delta)
     {
         Snapshot();

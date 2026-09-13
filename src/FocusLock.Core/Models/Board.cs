@@ -29,6 +29,10 @@ public sealed class BoardObject
     public double H { get; set; }
     public string Text { get; set; } = "";
     public string? Fill { get; set; }
+
+    /// <summary>Null means pick automatically from the fill so the label stays readable.</summary>
+    public string? TextColor { get; set; }
+
     public int Votes { get; set; }
     public double Rot { get; set; }
 
