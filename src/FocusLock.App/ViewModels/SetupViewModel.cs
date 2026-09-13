@@ -11,11 +11,13 @@ namespace FocusLock.App.ViewModels;
 public sealed partial class SetupViewModel : ObservableObjectBase
 {
     [ObservableProperty] string _name = "";
-    [ObservableProperty] int _durationOption = Durations.DefaultOption;
-    [ObservableProperty] bool _isCustomDuration;
-    [ObservableProperty] string _customDuration = "";
     [ObservableProperty] bool _isCountingDown;
     [ObservableProperty] int _countdownLeft;
+
+    // The length is a clock: three fields the user types into directly.
+    [ObservableProperty] string _hours = "01";
+    [ObservableProperty] string _minutes = "00";
+    [ObservableProperty] string _seconds = "00";
 
     DispatcherTimer? _countdown;
 
@@ -31,11 +33,11 @@ public sealed partial class SetupViewModel : ObservableObjectBase
     SetupViewModel(IEnumerable<Plan> seededPlans)
     {
         _seededPlans = [.. seededPlans];
-        foreach (var opt in Durations.Options)
-            DurationChips.Add(new DurationChip(opt, () => PickPreset(opt)));
+        foreach (var minutes in Durations.PresetMinutes)
+            DurationChips.Add(new DurationChip(minutes, () => SetClock(minutes * 60)));
         foreach (var p in _seededPlans)
             Plans.Add(new PlanRow(p.Name, RemovePlan));
-        RefreshChips();
+        RefreshClock();
     }
 
     public static SetupViewModel ForNew() => new([]);
@@ -50,59 +52,75 @@ public sealed partial class SetupViewModel : ObservableObjectBase
     static string ContinueName(string previous) =>
         previous.StartsWith("Continue: ", StringComparison.Ordinal) ? previous : $"Continue: {previous}";
 
-    void PickPreset(int option)
+    /// <summary>Fills the clock from a length in seconds (used by the preset chips).</summary>
+    public void SetClock(int seconds)
     {
-        IsCustomDuration = false;
-        DurationOption = option;
-        RefreshChips();
+        seconds = Math.Clamp(seconds, 0, Durations.MaxSeconds);
+        Hours = (seconds / 3600).ToString("00");
+        Minutes = (seconds % 3600 / 60).ToString("00");
+        Seconds = (seconds % 60).ToString("00");
     }
 
-    public void UseCustomDuration()
+    /// <summary>Pads each field to two digits once the user leaves it.</summary>
+    public void NormaliseClock()
     {
-        IsCustomDuration = true;
-        if (CustomDuration.Length == 0) CustomDuration = Durations.DefaultOption.ToString();
-        RefreshChips();
+        Hours = Part(Hours, Durations.MaxHours).ToString("00");
+        Minutes = Part(Minutes, 59).ToString("00");
+        Seconds = Part(Seconds, 59).ToString("00");
     }
 
-    partial void OnDurationOptionChanged(int value) => RefreshChips();
-    partial void OnCustomDurationChanged(string value) => RefreshChips();
-    partial void OnIsCustomDurationChanged(bool value) => RefreshChips();
-
-    void RefreshChips()
+    /// <summary>Adds to one field and carries nothing — each field stands on its own.</summary>
+    public void Nudge(string field, int delta)
     {
-        foreach (var c in DurationChips) c.Active = !IsCustomDuration && c.Option == DurationOption;
+        switch (field)
+        {
+            case "h": Hours = Wrap(Part(Hours, Durations.MaxHours) + delta, Durations.MaxHours).ToString("00"); break;
+            case "m": Minutes = Wrap(Part(Minutes, 59) + delta, 59).ToString("00"); break;
+            default: Seconds = Wrap(Part(Seconds, 59) + delta, 59).ToString("00"); break;
+        }
+    }
+
+    static int Wrap(int value, int max) => value < 0 ? max : value > max ? 0 : value;
+
+    static int Part(string text, int max) =>
+        int.TryParse(text.Trim(), out var v) ? Math.Clamp(v, 0, max) : 0;
+
+    partial void OnHoursChanged(string value) => RefreshClock();
+    partial void OnMinutesChanged(string value) => RefreshClock();
+    partial void OnSecondsChanged(string value) => RefreshClock();
+
+    void RefreshClock()
+    {
+        foreach (var c in DurationChips) c.Active = c.Minutes * 60 == SelectedSeconds;
+        OnPropertyChanged(nameof(SelectedSeconds));
         OnPropertyChanged(nameof(TimeRange));
         OnPropertyChanged(nameof(DurationLabel));
-        OnPropertyChanged(nameof(CustomIsValid));
+        OnPropertyChanged(nameof(DurationIsValid));
         OnPropertyChanged(nameof(CanStart));
     }
 
-    /// <summary>The typed number, or 0 when it is not a number at all.</summary>
-    int CustomUnits => int.TryParse(CustomDuration.Trim(), out var v) ? v : 0;
-
-    public bool CustomIsValid => !IsCustomDuration || Durations.IsValidCustom(CustomUnits);
-
-    public string CustomUnitLabel => Durations.UnitLabel;
-    public string CustomHint => $"1 – {Durations.MaxUnits} {Durations.UnitLabel}";
-
-    /// <summary>How long the session will run, from whichever way the length was chosen.</summary>
+    /// <summary>How long the session will run, straight from the clock.</summary>
     public int SelectedSeconds =>
-        Durations.ToSeconds(IsCustomDuration ? CustomUnits : DurationOption);
+        Part(Hours, Durations.MaxHours) * 3600 + Part(Minutes, 59) * 60 + Part(Seconds, 59);
+
+    public bool DurationIsValid => SelectedSeconds is >= 1 && SelectedSeconds <= Durations.MaxSeconds;
+
+    public string DurationHint => $"up to {Durations.MaxHours} hours";
 
     public string TimeRange
     {
         get
         {
-            if (!CustomIsValid) return "—";
+            if (!DurationIsValid) return "—";
             var now = DateTime.Now;
             var end = now.AddSeconds(SelectedSeconds);
             return $"{now:h:mm tt}  ›  {end:h:mm tt}";
         }
     }
 
-    public string DurationLabel => CustomIsValid ? Durations.Describe(SelectedSeconds) : "—";
+    public string DurationLabel => DurationIsValid ? Durations.Describe(SelectedSeconds) : "—";
     public string PlanCountLabel => Plans.Count == 1 ? "1 in list" : $"{Plans.Count} in list";
-    public bool CanStart => Name.Trim().Length > 0 && CustomIsValid && SelectedSeconds > 0;
+    public bool CanStart => Name.Trim().Length > 0 && DurationIsValid;
 
     partial void OnNameChanged(string value) => OnPropertyChanged(nameof(CanStart));
 
@@ -184,17 +202,17 @@ public sealed partial class SetupViewModel : ObservableObjectBase
         {
             Id = Ids.New("s"),
             Name = Name.Trim(),
-            PlannedSeconds = (int)Math.Min(SelectedSeconds, LockSafety.MaxSessionSeconds),
+            PlannedSeconds = Math.Min(SelectedSeconds, Durations.MaxSeconds),
             StartUtc = DateTime.UtcNow,
             Plans = plans,
         };
     }
 }
 
-public sealed partial class DurationChip(int option, Action pick) : ObservableObject
+public sealed partial class DurationChip(int minutes, Action pick) : ObservableObject
 {
-    public int Option { get; } = option;
-    public string Label { get; } = Durations.ChipLabel(option);
+    public int Minutes { get; } = minutes;
+    public string Label { get; } = Durations.ChipLabel(minutes);
     public Action Pick { get; } = pick;
     [ObservableProperty] bool _active;
 }
