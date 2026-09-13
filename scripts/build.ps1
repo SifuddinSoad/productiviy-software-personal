@@ -34,8 +34,9 @@ dotnet publish (Join-Path $root 'src\FocusLock.App\FocusLock.App.csproj') `
 # The recovery and install scripts travel with the app: one gets a stuck lock off, the other
 # puts the app on a local disk so a session can survive a restart.
 New-Item -ItemType Directory -Force (Join-Path $out 'scripts') | Out-Null
-Copy-Item (Join-Path $PSScriptRoot 'uninstall.ps1') (Join-Path $out 'scripts') -Force
-Copy-Item (Join-Path $PSScriptRoot 'install.ps1') (Join-Path $out 'scripts') -Force
+foreach ($script in 'uninstall.ps1', 'install.ps1', 'install-service.ps1', 'uninstall-service.ps1') {
+    Copy-Item (Join-Path $PSScriptRoot $script) (Join-Path $out 'scripts') -Force
+}
 Copy-Item (Join-Path $root 'docs\RECOVERY.md') $out -Force
 
 $size = (Get-ChildItem $out -Recurse -File | Measure-Object Length -Sum).Sum / 1MB

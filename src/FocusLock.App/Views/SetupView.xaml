@@ -251,6 +251,25 @@
                                        Foreground="{StaticResource TextSecondary}" Margin="10,0,0,0" MaxWidth="520" />
                         </StackPanel>
                     </Border>
+
+                    <!-- Which of the two restart behaviours this machine has -->
+                    <StackPanel Orientation="Horizontal" Margin="2,12,0,0">
+                        <TextBlock FontSize="15" VerticalAlignment="Center" Text="&#xe32a;">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Icon}">
+                                    <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GuardIsOn}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource Green}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding GuardLabel}" FontSize="11" TextWrapping="Wrap" MaxWidth="520"
+                                   VerticalAlignment="Center" Margin="8,0,0,0"
+                                   Foreground="{StaticResource TextDim}" />
+                    </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </DockPanel>

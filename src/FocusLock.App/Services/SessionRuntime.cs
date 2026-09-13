@@ -1,5 +1,6 @@
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using FocusLock.App.Guard;
 using FocusLock.Core.Models;
 using FocusLock.Core.Sessions;
 
@@ -51,6 +52,7 @@ public sealed partial class SessionRuntime : ObservableObject
         session.Clock = _clock.Snapshot();
         _store.Save(session);
         _active.Set(new ActiveSession { SessionId = session.Id, TaskMgrWasDisabled = taskMgrWasDisabled });
+        GuardClient.Begin(session);
         Begin(session);
     }
 
@@ -79,6 +81,8 @@ public sealed partial class SessionRuntime : ObservableObject
         if (pointer is null || pointer.SessionId != session.Id)
             _active.Set(new ActiveSession { SessionId = session.Id });
 
+        // Tell the guard again: it may have been installed, restarted or cleared since the session began.
+        GuardClient.Begin(session);
         Begin(session);
         return true;
     }
@@ -124,6 +128,7 @@ public sealed partial class SessionRuntime : ObservableObject
         if (Session is null || _clock is null) return;
         Session.Clock = _clock.Snapshot();
         _store.Save(Session);
+        GuardClient.Checkpoint(Session);
     }
 
     /// <summary>
@@ -145,6 +150,7 @@ public sealed partial class SessionRuntime : ObservableObject
         session.EndReason = reason;
         _store.Save(session);
         _active.Clear();
+        GuardClient.End(session);
         Session = null;
         _clock = null;
         IsFinished = false;

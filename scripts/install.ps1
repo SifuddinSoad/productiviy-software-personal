@@ -51,6 +51,9 @@ Write-Output ''
 Write-Output "Installed: $exe"
 Write-Output 'Start menu shortcut created.'
 Write-Output 'Restart-resume will work from here, unlike the shared folder.'
+Write-Output ''
+Write-Output 'Optional, from an administrator window, to close the gap at sign-in:'
+Write-Output "  powershell -ExecutionPolicy Bypass -File `"$target\scripts\install-service.ps1`""
 
 if (-not $NoLaunch) {
     Write-Output ''

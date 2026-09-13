@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Program.Main decides between the app and the guard service; WPF's generated entry point would not. -->
+    <StartupObject>FocusLock.App.Program</StartupObject>
     <AssemblyTitle>Saidrix Studio FocusLock</AssemblyTitle>
     <Product>FocusLock</Product>
     <Version>0.1.0</Version>
@@ -18,6 +20,7 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>

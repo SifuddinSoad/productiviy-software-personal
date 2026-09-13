@@ -1,3 +1,4 @@
+using FocusLock.App.Guard;
 using FocusLock.App.Lock;
 using FocusLock.Core;
 using FocusLock.Core.Models;
@@ -37,9 +38,17 @@ internal static class Cleanup
                 store.Save(session);
                 log.Add($"Session \"{session.Name}\" marked as ended early");
             }
+            GuardClient.EndById(pointer.SessionId);
             active.Clear();
             log.Add("Active session cleared");
         }
+
+        // Without administrator rights the command left in the inbox above is the whole story: the
+        // service picks it up on the next normal boot and lets go before anything locks again.
+        if (GuardClient.IsGuarding())
+            log.Add(GuardClient.TryClearState()
+                ? "Guard service state cleared"
+                : "Guard service asked to let go on its next start");
 
         return log;
     }

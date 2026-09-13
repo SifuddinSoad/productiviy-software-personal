@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using FocusLock.App.Guard;
 using FocusLock.App.Services;
 using FocusLock.Core;
 using FocusLock.Core.Models;
@@ -127,6 +128,16 @@ public sealed partial class SetupViewModel : ObservableObjectBase
     public string LocationWarning =>
         "Running from a network folder, so this session will not come back after a restart. " +
         "Install it on this PC first (scripts\\install.ps1).";
+
+    /// <summary>
+    /// Without the guard service the desktop is usable for a few seconds after sign-in, before the
+    /// logon entry starts the app. Worth knowing which of the two you are running with.
+    /// </summary>
+    public bool GuardIsOn { get; } = GuardClient.IsRunning();
+
+    public string GuardLabel => GuardIsOn
+        ? "Guard service on — a session comes back the moment you sign in"
+        : "Guard service off — after a restart the desktop is briefly usable before the lock returns";
 
     public string DurationLabel => DurationIsValid ? Durations.Describe(SelectedSeconds) : "—";
     public string PlanCountLabel => Plans.Count == 1 ? "1 in list" : $"{Plans.Count} in list";
