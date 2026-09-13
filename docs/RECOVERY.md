@@ -1,5 +1,9 @@
 # FocusLock থেকে উদ্ধারের উপায়
 
+> **কোথা থেকে চালাচ্ছেন সেটা জরুরি।** Shared folder (`\\VBoxSvr\build\...`) থেকে চালালে
+> restart-এর পর session ফিরে আসবে না — Windows logon-এর সময় shared folder তখনো তৈরি হয় না।
+> `scripts\install.ps1` চালিয়ে আগে এই PC-তে install করে নিন।
+
 Lock কোনো bug-এর কারণে শেষ না হলে এই ক্রমে চেষ্টা করুন। প্রতিটা উপায় আগেরটার চেয়ে কঠিন।
 
 ## ১. App-এর ভেতরেই Emergency exit

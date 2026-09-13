@@ -118,6 +118,16 @@ public sealed partial class SetupViewModel : ObservableObjectBase
         }
     }
 
+    /// <summary>
+    /// Running from a shared or network folder means Windows cannot start the app at logon, so a
+    /// restart would leave the machine unlocked. Worth saying plainly before a session begins.
+    /// </summary>
+    public bool WarnAboutLocation => !AppLocation.CanResumeAfterRestart;
+
+    public string LocationWarning =>
+        "Running from a network folder, so this session will not come back after a restart. " +
+        "Install it on this PC first (scripts\\install.ps1).";
+
     public string DurationLabel => DurationIsValid ? Durations.Describe(SelectedSeconds) : "—";
     public string PlanCountLabel => Plans.Count == 1 ? "1 in list" : $"{Plans.Count} in list";
     public bool CanStart => Name.Trim().Length > 0 && DurationIsValid;

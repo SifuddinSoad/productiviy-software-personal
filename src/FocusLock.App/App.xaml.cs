@@ -1,5 +1,6 @@
 using System.Windows;
 using FocusLock.App.Lock;
+using FocusLock.App.Services;
 using FocusLock.App.ViewModels;
 using FocusLock.App.Views;
 using FocusLock.Core;
@@ -13,6 +14,7 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // Cleanup deliberately skips the single-instance check: it is the way out when a copy is stuck.
         if (e.Args.Contains("--cleanup", StringComparer.OrdinalIgnoreCase))
         {
             var log = Cleanup.Run();
@@ -21,6 +23,14 @@ public partial class App : Application
             Shutdown();
             return;
         }
+
+        if (!SingleInstance.TryAcquire())
+        {
+            SingleInstance.FocusRunningInstance();
+            Shutdown();
+            return;
+        }
+        Exit += (_, _) => SingleInstance.Release();
 
         var store = new SessionStore(AppPaths.SessionsDir);
         var active = new ActiveSessionStore(AppPaths.ActiveFile);

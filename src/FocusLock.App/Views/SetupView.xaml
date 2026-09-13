@@ -240,6 +240,17 @@
                     </Button>
                     <TextBlock Text="Once started, the board stays locked until the timer ends."
                                FontSize="11.5" Foreground="{StaticResource TextDim}" HorizontalAlignment="Center" Margin="0,10,0,0" />
+
+                    <Border Background="#1f1a16" BorderBrush="#4a3a2c" BorderThickness="1" CornerRadius="10"
+                            Padding="14,11" Margin="0,14,0,0"
+                            Visibility="{Binding WarnAboutLocation, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="18" Foreground="{StaticResource Orange}"
+                                       Text="&#xf083;" VerticalAlignment="Top" />
+                            <TextBlock Text="{Binding LocationWarning}" FontSize="11.5" TextWrapping="Wrap"
+                                       Foreground="{StaticResource TextSecondary}" Margin="10,0,0,0" MaxWidth="520" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </ScrollViewer>
         </DockPanel>
