@@ -26,6 +26,16 @@ public sealed class SessionClock
         _lastTick = tickMs();
     }
 
+    /// <summary>
+    /// How much of a saved session would be left right now, without starting it. Used to decide
+    /// whether a session found on disk is still worth resuming.
+    /// </summary>
+    public static double RemainingFor(SessionClockState saved, double plannedSec, DateTime nowUtc)
+    {
+        var gap = Math.Max(0, (nowUtc - saved.LastCheckpointUtc).TotalSeconds);
+        return Math.Max(0, plannedSec - (saved.ConfirmedElapsedSec + gap));
+    }
+
     public static SessionClock Start(double plannedSec, Func<long> tickMs, Func<DateTime> utcNow) =>
         new(new SessionClockState { ConfirmedElapsedSec = 0, LastCheckpointUtc = utcNow() }, plannedSec, tickMs, utcNow);
 

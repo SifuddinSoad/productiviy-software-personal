@@ -34,6 +34,7 @@ public sealed class SessionStore(string directory)
     {
         if (!System.IO.Directory.Exists(Directory)) return [];
         return System.IO.Directory.EnumerateFiles(Directory, "*.json")
+            .Where(f => System.IO.Path.GetExtension(f).Equals(".json", StringComparison.OrdinalIgnoreCase))
             .Select(Json.Read<Session>)
             .OfType<Session>()
             .OrderByDescending(s => s.StartUtc)

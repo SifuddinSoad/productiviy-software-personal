@@ -54,13 +54,15 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
-    public void Save_leaves_no_temp_file()
+    public void Save_leaves_no_temp_file_behind()
     {
         var store = new SessionStore(_dir);
         store.Save(Sample("s1", DateTime.UtcNow));
         store.Save(Sample("s1", DateTime.UtcNow));
 
-        Assert.Single(Directory.GetFiles(_dir));
+        // the session itself and its .bak, and nothing half-written
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+        Assert.Single(store.List());
     }
 
     [Fact]

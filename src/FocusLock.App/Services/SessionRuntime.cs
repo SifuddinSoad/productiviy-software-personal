@@ -58,9 +58,14 @@ public sealed partial class SessionRuntime : ObservableObject
     public bool TryResume()
     {
         var pointer = _active.Get();
-        if (pointer is null) return false;
+        var session = pointer is null ? null : _store.Load(pointer.SessionId);
 
-        var session = _store.Load(pointer.SessionId);
+        // The pointer is small and written often, so a crash can cost it. The session files are the
+        // real record: fall back to the newest one still unfinished and still holding time, so
+        // losing the pointer is not a way out of a locked session.
+        session ??= _store.List().FirstOrDefault(s =>
+            !s.IsEnded && SessionClock.RemainingFor(s.Clock, s.PlannedSeconds, DateTime.UtcNow) > 0);
+
         if (session is null || session.IsEnded)
         {
             _active.Clear();
@@ -70,6 +75,10 @@ public sealed partial class SessionRuntime : ObservableObject
         _clock = SessionClock.Resume(session.Clock, session.PlannedSeconds, () => Environment.TickCount64, () => DateTime.UtcNow);
         session.Clock = _clock.Snapshot();
         _store.Save(session);
+
+        if (pointer is null || pointer.SessionId != session.Id)
+            _active.Set(new ActiveSession { SessionId = session.Id });
+
         Begin(session);
         return true;
     }
