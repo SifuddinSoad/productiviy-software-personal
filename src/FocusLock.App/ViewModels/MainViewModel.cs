@@ -68,6 +68,9 @@ public sealed partial class MainViewModel : ObservableObject
         OpenActiveBoard();
     }
 
+    /// <summary>Shows the emergency dialog and reports whether the code was typed correctly.</summary>
+    public Func<bool>? EmergencyExitRequested { get; set; }
+
     void OpenActiveBoard()
     {
         var session = Runtime.Session!;
@@ -76,12 +79,20 @@ public sealed partial class MainViewModel : ObservableObject
             var lockVm = new LockScreenViewModel(session, Runtime);
             lockVm.MakePlan += () => { AddFirstPlan(session); OpenActiveBoard(); };
             lockVm.Ended += () => Runtime.End(EndReason.Completed);
+            lockVm.EmergencyExit += TryEmergencyExit;
             Current = lockVm;
             return;
         }
 
         var vm = new WhiteboardViewModel(session, Runtime, readOnly: false);
+        vm.EmergencyExit += TryEmergencyExit;
         Current = vm;
+    }
+
+    void TryEmergencyExit()
+    {
+        if (EmergencyExitRequested?.Invoke() == true)
+            Runtime.End(EndReason.Emergency);
     }
 
     void AddFirstPlan(Session session)

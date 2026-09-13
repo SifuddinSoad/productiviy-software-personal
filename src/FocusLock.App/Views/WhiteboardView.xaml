@@ -143,6 +143,16 @@
                                        VerticalAlignment="Center" Margin="7,0,0,0" />
                         </StackPanel>
                     </Button>
+                    <Button Click="Emergency_Click" Style="{StaticResource Flat}" Height="26" t:Ui.CornerRadius="7"
+                            Margin="0,0,10,0" Foreground="{StaticResource TextMuted}"
+                            t:Ui.HoverBackground="{StaticResource Hover}" t:Ui.HoverForeground="{StaticResource Orange}"
+                            ToolTip="End the session early by typing a long code"
+                            Visibility="{Binding CanEmergencyExit, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal" Margin="8,0">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="14" Text="&#xf083;" />
+                            <TextBlock Text="Emergency exit" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0" />
+                        </StackPanel>
+                    </Button>
                     <TextBlock Text="{Binding ObjectCountLabel}" FontSize="11" Foreground="{StaticResource TextMuted}"
                                VerticalAlignment="Center" Margin="0,0,10,0" />
                     <Button Click="TogglePrompt_Click" Style="{StaticResource Flat}" Height="32" t:Ui.CornerRadius="9"

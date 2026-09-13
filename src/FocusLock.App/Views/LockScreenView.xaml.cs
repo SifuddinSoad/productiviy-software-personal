@@ -12,4 +12,5 @@ public partial class LockScreenView : UserControl
 
     void MakePlan_Click(object sender, RoutedEventArgs e) => Vm?.OnMakePlan();
     void End_Click(object sender, RoutedEventArgs e) => Vm?.OnEnd();
+    void Emergency_Click(object sender, RoutedEventArgs e) => Vm?.RequestEmergencyExit();
 }

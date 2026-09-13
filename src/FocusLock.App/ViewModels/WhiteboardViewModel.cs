@@ -43,6 +43,12 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
     public event Action? Back;
     public event Action<Session>? Continue;
+    public event Action? EmergencyExit;
+
+    /// <summary>Only offered while a session is actually holding the screen.</summary>
+    public bool CanEmergencyExit => !ReadOnly;
+
+    public void RequestEmergencyExit() => EmergencyExit?.Invoke();
 
     static readonly string[] StickyColors = ["#f2d06b", "#a8d5c2", "#aec8e8", "#f0b8ae", "#c9bce4", "#eae7e1"];
     static readonly string[] Fills = ["#ffffff", "#eae7e1", "#f2d06b", "#a8d5c2", "#aec8e8", "#f0b8ae", "#c9bce4"];

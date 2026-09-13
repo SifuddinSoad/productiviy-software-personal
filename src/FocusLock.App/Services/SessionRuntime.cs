@@ -117,6 +117,16 @@ public sealed partial class SessionRuntime : ObservableObject
         _store.Save(Session);
     }
 
+    /// <summary>
+    /// Records whether Task Manager was already disabled before this session locked, so unlocking
+    /// leaves a setting the user made themselves alone.
+    /// </summary>
+    public void SetTaskManagerWasDisabled(bool value)
+    {
+        if (Session is null) return;
+        _active.Set(new ActiveSession { SessionId = Session.Id, TaskMgrWasDisabled = value });
+    }
+
     public void End(EndReason reason)
     {
         if (Session is not { } session) return;

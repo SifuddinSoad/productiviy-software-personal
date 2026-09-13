@@ -33,6 +33,7 @@ public partial class WhiteboardView : UserControl
     void Back_Click(object s, RoutedEventArgs e) => Vm?.OnBack();
     void Continue_Click(object s, RoutedEventArgs e) => Vm?.OnContinue();
     void End_Click(object s, RoutedEventArgs e) => Vm?.OnEnd();
+    void Emergency_Click(object s, RoutedEventArgs e) => Vm?.RequestEmergencyExit();
     void Undo_Click(object s, RoutedEventArgs e) => C?.Undo();
     void Redo_Click(object s, RoutedEventArgs e) => C?.Redo();
     void TogglePlans_Click(object s, RoutedEventArgs e) => Vm?.TogglePlans();

@@ -1,6 +1,7 @@
 using System.Windows;
 using FocusLock.App.Lock;
 using FocusLock.App.ViewModels;
+using FocusLock.App.Views;
 using FocusLock.Core;
 using FocusLock.Core.Sessions;
 
@@ -31,6 +32,12 @@ public partial class App : Application
         var main = new MainViewModel(store, active);
         var window = new MainWindow { DataContext = main };
         MainWindow = window;
+
+        var kiosk = new KioskController(window, main.Runtime);
+        main.EmergencyExitRequested = () =>
+            new EmergencyExitDialog { Owner = window }.ShowDialog() == true;
+        Exit += (_, _) => kiosk.Dispose();
+
         window.Show();
         main.Startup();
     }

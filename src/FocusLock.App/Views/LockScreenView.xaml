@@ -10,6 +10,17 @@
              Background="{StaticResource Bg}">
 
     <Grid>
+        <Button Click="Emergency_Click" Style="{StaticResource Flat}" Height="26" t:Ui.CornerRadius="7"
+                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,16,0"
+                Foreground="{StaticResource TextMuted}"
+                t:Ui.HoverBackground="{StaticResource Hover}" t:Ui.HoverForeground="{StaticResource Orange}"
+                ToolTip="End the session early by typing a long code">
+            <StackPanel Orientation="Horizontal" Margin="8,0">
+                <TextBlock Style="{StaticResource Icon}" FontSize="14" Text="&#xf083;" />
+                <TextBlock Text="Emergency exit" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0" />
+            </StackPanel>
+        </Button>
+
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <TextBlock Style="{StaticResource Icon}" FontSize="20" Foreground="{StaticResource TextMuted}" Text="&#xe899;" />

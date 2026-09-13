@@ -15,6 +15,9 @@ public sealed partial class LockScreenViewModel : ObservableObjectBase, IDisposa
     public string SessionName { get; }
     public event Action? MakePlan;
     public event Action? Ended;
+    public event Action? EmergencyExit;
+
+    public void RequestEmergencyExit() => EmergencyExit?.Invoke();
 
     public LockScreenViewModel(Session session, SessionRuntime runtime)
     {
