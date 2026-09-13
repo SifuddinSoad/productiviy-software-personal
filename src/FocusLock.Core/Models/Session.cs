@@ -4,6 +4,9 @@ public enum EndReason
 {
     Completed,
     Emergency,
+
+    /// <summary>The app stopped while the session was still running, so it never ended properly.</summary>
+    Interrupted,
 }
 
 public sealed class Session

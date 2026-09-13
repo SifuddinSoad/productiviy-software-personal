@@ -90,6 +90,48 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
+    public void Unfinished_sessions_are_closed_out_as_interrupted()
+    {
+        var store = new SessionStore(_dir);
+        var started = new DateTime(2026, 9, 13, 9, 0, 0, DateTimeKind.Utc);
+        var stale = Sample("stale", started);
+        stale.Clock = new SessionClockState { ConfirmedElapsedSec = 600, LastCheckpointUtc = started.AddMinutes(10) };
+        store.Save(stale);
+
+        var closed = store.CloseUnfinished(exceptId: null);
+
+        var loaded = store.Load("stale")!;
+        Assert.Equal(1, closed);
+        Assert.Equal(EndReason.Interrupted, loaded.EndReason);
+        Assert.Equal(started.AddMinutes(10), loaded.EndedUtc);   // last moment it was known alive
+        Assert.Equal("interrupted", Progress.StateLabel(loaded));
+    }
+
+    [Fact]
+    public void The_session_that_is_still_running_is_left_alone()
+    {
+        var store = new SessionStore(_dir);
+        store.Save(Sample("running", DateTime.UtcNow));
+
+        store.CloseUnfinished(exceptId: "running");
+
+        Assert.False(store.Load("running")!.IsEnded);
+    }
+
+    [Fact]
+    public void Already_ended_sessions_are_not_touched()
+    {
+        var store = new SessionStore(_dir);
+        var done = Sample("done", DateTime.UtcNow);
+        done.EndedUtc = new DateTime(2026, 9, 13, 10, 0, 0, DateTimeKind.Utc);
+        done.EndReason = EndReason.Completed;
+        store.Save(done);
+
+        Assert.Equal(0, store.CloseUnfinished(null));
+        Assert.Equal(EndReason.Completed, store.Load("done")!.EndReason);
+    }
+
+    [Fact]
     public void Active_store_set_get_clear()
     {
         var active = new ActiveSessionStore(Path.Combine(_dir, "active.json"));

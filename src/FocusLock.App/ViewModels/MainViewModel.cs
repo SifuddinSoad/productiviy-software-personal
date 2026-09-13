@@ -22,13 +22,20 @@ public sealed partial class MainViewModel : ObservableObject
         Runtime.Ended += _ => GoHome();
     }
 
-    public void Startup(bool resume)
+    /// <summary>
+    /// An unfinished session always resumes, however the app was started — otherwise closing and
+    /// reopening would be a way out of a locked session. Anything left unfinished by an earlier
+    /// crash is closed out so it stops reading as active.
+    /// </summary>
+    public void Startup()
     {
-        if (resume && Runtime.TryResume())
+        if (Runtime.TryResume())
         {
+            _store.CloseUnfinished(Runtime.Session!.Id);
             OpenActiveBoard();
             return;
         }
+        _store.CloseUnfinished(null);
         GoHome();
     }
 

@@ -10,12 +10,13 @@ public static class Progress
 
     public static bool IsComplete(Session s) => s.Plans.Count == 0 || s.Plans.All(p => p.Done);
 
-    public static string StateLabel(Session s)
+    public static string StateLabel(Session s) => s switch
     {
-        if (!s.IsEnded) return "active";
-        if (s.EndReason == EndReason.Emergency) return "ended early";
-        return IsComplete(s) ? "complete" : "ended";
-    }
+        { IsEnded: false } => "active",
+        { EndReason: EndReason.Emergency } => "ended early",
+        { EndReason: EndReason.Interrupted } => "interrupted",
+        _ => IsComplete(s) ? "complete" : "ended",
+    };
 
     /// <summary>An ended session with unfinished plans can seed a new session.</summary>
     public static bool CanContinue(Session s) => s.IsEnded && s.Plans.Any(p => !p.Done);

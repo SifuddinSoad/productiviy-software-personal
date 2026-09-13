@@ -12,6 +12,23 @@ public sealed class SessionStore(string directory)
 
     public Session? Load(string id) => Json.Read<Session>(PathFor(id));
 
+    /// <summary>
+    /// Closes out sessions left unfinished by a crash or by the app being killed, so they stop
+    /// showing as active forever. The end time is the last moment the session was known to be alive.
+    /// </summary>
+    public int CloseUnfinished(string? exceptId)
+    {
+        var closed = 0;
+        foreach (var s in List().Where(s => !s.IsEnded && s.Id != exceptId))
+        {
+            s.EndedUtc = s.Clock.LastCheckpointUtc == default ? s.StartUtc : s.Clock.LastCheckpointUtc;
+            s.EndReason = EndReason.Interrupted;
+            Save(s);
+            closed++;
+        }
+        return closed;
+    }
+
     /// <summary>All readable sessions, newest first. Corrupt files are skipped.</summary>
     public List<Session> List()
     {
