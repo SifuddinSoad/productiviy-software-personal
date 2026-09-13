@@ -395,10 +395,31 @@
 
                     <Border DockPanel.Dock="Top" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="12,11">
                         <StackPanel>
-                            <Button Click="ExtractTool_Click" Style="{StaticResource PrimaryButton}" Height="34" t:Ui.CornerRadius="9">
+                            <Button Click="ExtractTool_Click" Height="34" t:Ui.CornerRadius="9">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsPickingRegion}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource Green}" />
+                                                <Setter Property="t:Ui.HoverBackground" Value="{StaticResource Green}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe3be;" />
-                                    <TextBlock Text="Pick a region" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                    <TextBlock FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="Pick a region" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsPickingRegion}" Value="True">
+                                                        <Setter Property="Text" Value="Now drag on the canvas" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
                             </Button>
                             <TextBlock Text="Drag a box on the canvas around the part you want." FontSize="10.5"

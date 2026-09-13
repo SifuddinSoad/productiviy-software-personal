@@ -136,6 +136,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         OnPropertyChanged(nameof(CanRedo));
         OnPropertyChanged(nameof(ZoomLabel));
         OnPropertyChanged(nameof(Hint));
+        OnPropertyChanged(nameof(IsPickingRegion));
         OnPropertyChanged(nameof(ShowShapeFlyout));
         OnPropertyChanged(nameof(ShowConnFlyout));
         OnPropertyChanged(nameof(ShowStickyFlyout));
@@ -489,6 +490,8 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         cam.Y = Controller.ViewportHeight / 2 - (card.Item.Y + card.Item.H / 2) * cam.Z;
         Controller.Notify();
     }
+
+    public bool IsPickingRegion => Controller.CurrentTool == Tool.Extract;
 
     public void StartExtractTool() => Controller.SetTool(Tool.Extract);
 

@@ -42,6 +42,7 @@
     <!-- Accents -->
     <SolidColorBrush x:Key="Light" Color="#e9e9e7" />
     <SolidColorBrush x:Key="Green" Color="#8fd18a" />
+    <SolidColorBrush x:Key="GreenStrong" Color="#a6dda1" />
     <SolidColorBrush x:Key="GreenBg" Color="#1f2e1f" />
     <SolidColorBrush x:Key="Orange" Color="#ff8a6b" />
     <SolidColorBrush x:Key="Yellow" Color="#f2d06b" />

@@ -159,9 +159,12 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
 
     // ---------- tools ----------
 
+    /// <summary>Tools that only look at the canvas, so they work even on a read-only session.</summary>
+    static bool IsReadOnlySafe(string tool) => tool is Tool.Select or Tool.Hand or Tool.Extract;
+
     public void SetTool(string tool)
     {
-        if (ReadOnly) return;
+        if (ReadOnly && !IsReadOnlySafe(tool)) return;
         CurrentTool = tool;
         EditingId = null;
         EditingCell = -1;
@@ -357,7 +360,8 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         var world = ToWorld(screen);
         MouseWorld = world;
 
-        if (middleButton || CurrentTool == Tool.Hand || SpaceHeld || ReadOnly)
+        // a read-only session pans on every drag, except when boxing a region for the PDF
+        if (middleButton || CurrentTool == Tool.Hand || SpaceHeld || (ReadOnly && CurrentTool != Tool.Extract))
         {
             StartPan(screen);
             return;
