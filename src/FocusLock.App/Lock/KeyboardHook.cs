@@ -1,15 +1,24 @@
+using System.Windows.Threading;
+
 namespace FocusLock.App.Lock;
 
 /// <summary>
 /// Swallows the shortcuts that would otherwise leave the locked window: the Windows keys,
 /// Alt+Tab, Alt+Esc, Ctrl+Esc, Alt+F4, Alt+Space and Ctrl+Shift+Esc.
 /// Ctrl+Alt+Del cannot be hooked — the Task Manager policy covers what it would reach.
+///
+/// The hook lives on its own thread. Windows drops a low-level hook whose callback does not answer
+/// within LowLevelHooksTimeout (one second by default) and says nothing about it, so a UI thread
+/// busy painting the canvas or writing a PDF would quietly unblock every shortcut. A thread of its
+/// own is never busy; <see cref="Refresh"/> puts the hook back for whatever slips through anyway.
 /// </summary>
 internal sealed class KeyboardHook : IDisposable
 {
     // The delegate must stay referenced for as long as the hook lives, or it is collected
     // and the callback crashes the process.
     readonly Win32.HookProc _callback;
+    Dispatcher? _dispatcher;
+    Thread? _thread;
     IntPtr _hook;
 
     public KeyboardHook() => _callback = OnKey;
@@ -18,11 +27,64 @@ internal sealed class KeyboardHook : IDisposable
 
     public void Install()
     {
+        if (_thread is not null) return;
+
+        var ready = new ManualResetEventSlim();
+        var thread = new Thread(() =>
+        {
+            _dispatcher = Dispatcher.CurrentDispatcher;
+            Hook();
+            ready.Set();
+            Dispatcher.Run();
+        })
+        {
+            IsBackground = true,
+            Name = "FocusLock keyboard hook",
+            Priority = ThreadPriority.AboveNormal,
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        _thread = thread;
+        thread.Start();
+
+        // Engage() must not return before the shortcuts are actually blocked.
+        ready.Wait(TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>
+    /// Takes the hook down and puts it straight back, on the hook's own thread. Cheap enough to run
+    /// on a timer, and the only way to recover a hook Windows has silently dropped.
+    /// </summary>
+    public void Refresh() => _dispatcher?.BeginInvoke(() =>
+    {
+        Unhook();
+        Hook();
+    });
+
+    public void Remove()
+    {
+        var dispatcher = _dispatcher;
+        var thread = _thread;
+        _dispatcher = null;
+        _thread = null;
+
+        if (dispatcher is null)
+        {
+            Unhook();
+            return;
+        }
+
+        dispatcher.Invoke(Unhook);
+        dispatcher.InvokeShutdown();
+        thread?.Join(TimeSpan.FromSeconds(2));
+    }
+
+    void Hook()
+    {
         if (IsInstalled) return;
         _hook = Win32.SetWindowsHookEx(Win32.WhKeyboardLl, _callback, Win32.GetModuleHandle(null), 0);
     }
 
-    public void Remove()
+    void Unhook()
     {
         if (!IsInstalled) return;
         Win32.UnhookWindowsHookEx(_hook);

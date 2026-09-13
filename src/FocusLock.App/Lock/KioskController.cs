@@ -29,6 +29,10 @@ internal sealed class KioskController : IDisposable
     readonly DispatcherTimer _guard = new() { Interval = TimeSpan.FromSeconds(1) };
     readonly Stopwatch _lockedFor = new();
 
+    /// <summary>Guard ticks between putting the keyboard hook back. See <see cref="KeyboardHook.Refresh"/>.</summary>
+    const int HookRefreshTicks = 5;
+    int _ticks;
+
     WindowState _savedState;
     WindowStyle _savedStyle;
     ResizeMode _savedResize;
@@ -50,6 +54,7 @@ internal sealed class KioskController : IDisposable
         if (IsLocked || _runtime.Session is not { } session) return;
         IsLocked = true;
         _lockedFor.Restart();
+        _ticks = 0;
 
         _savedState = _window.WindowState;
         _savedStyle = _window.WindowStyle;
@@ -161,6 +166,8 @@ internal sealed class KioskController : IDisposable
         }
 
         if (!_window.Topmost) _window.Topmost = true;
+
+        if (++_ticks % HookRefreshTicks == 0) _hook.Refresh();
     }
 
     public void Dispose()
