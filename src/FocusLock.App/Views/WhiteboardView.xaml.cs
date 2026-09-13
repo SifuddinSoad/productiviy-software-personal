@@ -110,7 +110,8 @@ public partial class WhiteboardView : UserControl
     {
         base.OnPreviewKeyDown(e);
         if (C is not { } c || c.ReadOnly) return;
-        if (Keyboard.FocusedElement is TextBox) return;
+        // A letter typed into a label must never also fire that letter's tool shortcut.
+        if (Canvas.IsEditing || Keyboard.FocusedElement is TextBox) return;
 
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;

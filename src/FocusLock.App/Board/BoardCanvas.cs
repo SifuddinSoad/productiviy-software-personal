@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using FocusLock.Core.Board;
 using FocusLock.Core.Models;
 using CorePt = FocusLock.Core.Board.Pt;
@@ -44,6 +45,9 @@ public sealed class BoardCanvas : Canvas
         };
         Children.Add(_editor);
     }
+
+    /// <summary>True while a label is open in the overlay editor; keyboard shortcuts must stand down.</summary>
+    public bool IsEditing => _editingId is not null;
 
     public BoardController? Controller
     {
@@ -117,10 +121,13 @@ public sealed class BoardCanvas : Canvas
 
     static Rect ToRect(CoreRect r) => new(r.X, r.Y, Math.Max(0, r.W), Math.Max(0, r.H));
 
+    /// <summary>True while this text is live in the overlay editor, so the canvas must not draw it too.</summary>
+    bool IsEditingText(BoardObject o, int cell = -1) => _editingId == o.Id && _editingCell == cell;
+
     void DrawFrame(DrawingContext dc, BoardObject o)
     {
         dc.DrawRoundedRectangle(B.FrameFill, B.FramePen, new Rect(o.X, o.Y, o.W, o.H), 3, 3);
-        if (!string.IsNullOrEmpty(o.Text))
+        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
             dc.DrawText(Ft(o.Text, Fonts.Sans, 11, FontWeights.SemiBold, B.FrameLabel), new Point(o.X, o.Y - 19));
     }
 
@@ -167,7 +174,7 @@ public sealed class BoardCanvas : Canvas
             dc.DrawLine(B.CellPen, new Point(cell.Left, cell.Bottom), new Point(cell.Right, cell.Bottom));
 
             var text = o.Cells is { } cells && i < cells.Count ? cells[i] : "";
-            if (text.Length == 0) continue;
+            if (text.Length == 0 || IsEditingText(o, i)) continue;
             var ft = Ft(text, Fonts.Sans, 12, r == 0 ? FontWeights.SemiBold : FontWeights.Normal, B.Light, cellW - 18);
             ft.MaxLineCount = 1;
             ft.Trimming = TextTrimming.CharacterEllipsis;
@@ -181,7 +188,7 @@ public sealed class BoardCanvas : Canvas
         dc.PushTransform(new TranslateTransform(o.X, o.Y));
         dc.DrawGeometry(Theme.HexBrush.FromHex(o.Fill ?? "#ffffff"), B.ShapePen, geometry);
 
-        if (!string.IsNullOrEmpty(o.Text))
+        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
         {
             var maxW = o.W * ShapeGeometry.TextWidthFactor(o);
             var ft = Ft(o.Text, Fonts.Sans, 13, FontWeights.Medium, B.OnLight, maxW, TextAlignment.Center);
@@ -214,7 +221,7 @@ public sealed class BoardCanvas : Canvas
         dc.DrawRectangle(B.Shadow, null, new Rect(o.X + 2, o.Y + 6, o.W, o.H));
         dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(o.Fill ?? "#f2d06b"), null, new Rect(o.X, o.Y, o.W, o.H), 2, 2);
 
-        if (!string.IsNullOrEmpty(o.Text))
+        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
             dc.DrawText(Ft(o.Text, Fonts.Sans, 13.5, FontWeights.Medium, B.OnLight, o.W - 24), new Point(o.X + 12, o.Y + 12));
 
         if (o.Votes > 0)
@@ -231,7 +238,7 @@ public sealed class BoardCanvas : Canvas
 
     void DrawText(DrawingContext dc, BoardObject o)
     {
-        if (string.IsNullOrEmpty(o.Text)) return;
+        if (string.IsNullOrEmpty(o.Text) || IsEditingText(o)) return;
         var weight = FontWeight.FromOpenTypeWeight(Math.Clamp(o.Weight ?? 600, 100, 900));
         dc.DrawText(Ft(o.Text, Fonts.Sans, o.Size ?? 20, weight, B.Light, o.W), new Point(o.X, o.Y));
     }
@@ -245,7 +252,7 @@ public sealed class BoardCanvas : Canvas
         dc.DrawText(Ft(Theme.Icons.EditNote, Fonts.Icons, 14, FontWeights.Light, B.Yellow), new Point(rect.X + 12, rect.Y + 11));
         dc.DrawText(Ft("PROMPT", Fonts.Mono, 9.5, FontWeights.Normal, B.PromptLabel), new Point(rect.X + 32, rect.Y + 13));
 
-        if (!string.IsNullOrEmpty(o.Text))
+        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
         {
             var ft = Ft(o.Text, Fonts.Mono, 11.5, FontWeights.Normal, B.PromptText, o.W - 24);
             ft.MaxTextHeight = 64;
@@ -355,8 +362,15 @@ public sealed class BoardCanvas : Canvas
         _editor.Text = cell >= 0 ? o.Cells?.ElementAtOrDefault(cell) ?? "" : o.Text;
         _editor.Visibility = Visibility.Visible;
         PositionEditor();
-        _editor.Focus();
-        _editor.SelectAll();
+
+        // The editor has only just been made visible; focusing it in the same pass silently fails
+        // and every keystroke would then reach the canvas as a tool shortcut.
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (_editingId != id) return;
+            Keyboard.Focus(_editor);
+            _editor.SelectAll();
+        });
     }
 
     void PositionEditor()
