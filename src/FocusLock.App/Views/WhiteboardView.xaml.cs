@@ -99,8 +99,7 @@ public partial class WhiteboardView : UserControl
     // ---- extract ----
     void ExtractTool_Click(object s, RoutedEventArgs e) => Vm?.StartExtractTool();
     void ExportPdf_Click(object s, RoutedEventArgs e) => Vm?.ExportPdf();
-    void ExtractUp_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.MoveUp();
-    void ExtractDown_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.MoveDown();
+    void Arrange_Click(object s, RoutedEventArgs e) => Vm?.OpenArrange();
     void ExtractShow_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.Show();
     void ExtractRemove_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.Remove();
 
@@ -134,6 +133,8 @@ public partial class WhiteboardView : UserControl
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         base.OnPreviewKeyDown(e);
+        // the Arrange pages screen has keys of its own
+        if (Vm?.IsArranging == true) return;
         if (C is not { } c || c.ReadOnly) return;
         // A letter typed into a label must never also fire that letter's tool shortcut.
         if (Canvas.IsEditing || Keyboard.FocusedElement is TextBox) return;

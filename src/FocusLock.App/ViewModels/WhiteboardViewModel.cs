@@ -8,6 +8,7 @@ using FocusLock.App.Services;
 using FocusLock.App.Theme;
 using FocusLock.Core;
 using FocusLock.Core.Board;
+using FocusLock.Core.Export;
 using FocusLock.Core.Models;
 using FocusLock.Core.Sessions;
 using CoreRect = FocusLock.Core.Board.Rect;
@@ -414,21 +415,49 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public string ExtractCountLabel => Extracts.Count.ToString();
     public bool HasExtracts => Extracts.Count > 0;
 
-    [ObservableProperty] bool _showTitles;
     [ObservableProperty] string _lastExport = "";
 
+    /// <summary>The Arrange pages screen while it is open.</summary>
+    [ObservableProperty] PageLayoutViewModel? _arrange;
+
+    public bool IsArranging => Arrange is not null;
+
+    partial void OnArrangeChanged(PageLayoutViewModel? value) => OnPropertyChanged(nameof(IsArranging));
+
     public void ToggleExtract() => Panel = Panel == "extract" ? "none" : "extract";
+
+    public void OpenArrange()
+    {
+        if (Arrange is not null) return;
+        Controller.SetTool(Tool.Select);
+        LastExport = "";
+        Arrange = new PageLayoutViewModel(this);
+    }
+
+    /// <summary>The layout screen may have removed or restored sections, so the list is rebuilt.</summary>
+    public void CloseArrange()
+    {
+        if (Arrange is null) return;
+        Arrange.Detach();
+        Arrange = null;
+        RebuildExtracts();
+    }
+
+    /// <summary>Saves a layout edit, read-only session or not.</summary>
+    public void PersistLayout() => Persist();
 
     void AddExtract(CoreRect region)
     {
         if (CurrentPlan is not { } plan) return;
-        Session.Extracts.Add(new ExtractItem
+        var item = new ExtractItem
         {
             Id = Ids.New("x"),
             PlanId = plan.Plan.Id,
             Name = $"Extract {Session.Extracts.Count + 1}",
             X = region.X, Y = region.Y, W = region.W, H = region.H,
-        });
+        };
+        Session.Extracts.Add(item);
+        PageLayout.Complete(Session);
         RebuildExtracts();
         Panel = "extract";
         Persist();
@@ -436,6 +465,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
     void RebuildExtracts()
     {
+        PageLayout.Complete(Session);
         Extracts.Clear();
         foreach (var item in Session.Extracts)
             Extracts.Add(new ExtractCard(item, this));
@@ -458,17 +488,6 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public void RemoveExtract(ExtractCard card)
     {
         Session.Extracts.RemoveAll(e => e.Id == card.Item.Id);
-        RebuildExtracts();
-        Persist();
-    }
-
-    public void MoveExtract(ExtractCard card, int delta)
-    {
-        var index = Session.Extracts.FindIndex(e => e.Id == card.Item.Id);
-        var target = index + delta;
-        if (index < 0 || target < 0 || target >= Session.Extracts.Count) return;
-
-        (Session.Extracts[index], Session.Extracts[target]) = (Session.Extracts[target], Session.Extracts[index]);
         RebuildExtracts();
         Persist();
     }
@@ -505,8 +524,9 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
         try
         {
-            var pages = Export.PdfExporter.Write(Session, path, ShowTitles);
-            LastExport = pages == 0
+            var drawn = Export.PdfExporter.Write(Session, path);
+            var pages = Session.Pages.Count;
+            LastExport = drawn == 0
                 ? "Nothing to export — those regions' plans are gone."
                 : $"Saved {pages} page{(pages == 1 ? "" : "s")} to {path}";
         }
@@ -626,6 +646,10 @@ public sealed partial class ExtractCard(ExtractItem item, WhiteboardViewModel ow
     public string PlanName => owner.Plans.FirstOrDefault(p => p.Plan.Id == Item.PlanId)?.Name ?? "removed plan";
     public string SizeLabel => $"{Math.Round(Item.W)} × {Math.Round(Item.H)}";
 
+    public string PageLabel => owner.Session.Pages.FindIndex(p => p.Id == Item.PageId) is var i and >= 0
+        ? $"Page {i + 1}"
+        : "";
+
     /// <summary>Drawn from the canvas each time the list is rebuilt, so it follows any edits.</summary>
     public ImageSource? Thumbnail
     {
@@ -641,8 +665,6 @@ public sealed partial class ExtractCard(ExtractItem item, WhiteboardViewModel ow
     }
 
     public void Remove() => owner.RemoveExtract(this);
-    public void MoveUp() => owner.MoveExtract(this, -1);
-    public void MoveDown() => owner.MoveExtract(this, 1);
     public void Rename(string name) => owner.RenameExtract(this, name);
     public void Show() => owner.ShowExtract(this);
 }

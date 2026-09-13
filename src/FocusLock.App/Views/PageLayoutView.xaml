@@ -1,0 +1,130 @@
+<UserControl x:Class="FocusLock.App.Views.PageLayoutView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:FocusLock.App.ViewModels"
+             xmlns:t="clr-namespace:FocusLock.App.Theme"
+             xmlns:ex="clr-namespace:FocusLock.App.Export"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:PageLayoutViewModel}"
+             Background="{StaticResource Bg}">
+
+    <UserControl.Resources>
+        <!-- one half of the Dark / White switch; Tag says which half, IsLight which is on -->
+        <Style x:Key="ThemeHalf" TargetType="Button" BasedOn="{StaticResource Flat}">
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="t:Ui.CornerRadius" Value="6" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="t:Ui.HoverBackground" Value="{StaticResource Hover}" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Height="48" Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+            <Grid Margin="14,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Click="Close_Click" Style="{StaticResource Flat}" Height="32" Padding="10,0"
+                            BorderThickness="1" BorderBrush="{StaticResource Border}" t:Ui.CornerRadius="9"
+                            Foreground="{StaticResource TextSecondary}" t:Ui.HoverBackground="{StaticResource Hover}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5c4;" />
+                            <TextBlock Text="Canvas" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="Arrange pages" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="14,0,0,0" />
+                    <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding PageCountLabel}" FontSize="10.5" Foreground="{StaticResource TextSubtle}" />
+                    </Border>
+                    <Button Click="Undo_Click" Style="{StaticResource GhostIconButton}" Margin="14,0,0,0" ToolTip="Undo (Ctrl+Z)"
+                            IsEnabled="{Binding CanUndo}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe166;" />
+                    </Button>
+                    <Button Click="Redo_Click" Style="{StaticResource GhostIconButton}" ToolTip="Redo (Ctrl+Y)"
+                            IsEnabled="{Binding CanRedo}">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15a;" />
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="2">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Click="Dark_Click" Content="Dark" FontSize="11.5" FontWeight="SemiBold">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ThemeHalf}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Light}" Value="False">
+                                                <Setter Property="Background" Value="{StaticResource Light}" />
+                                                <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Click="White_Click" Content="White" FontSize="11.5" FontWeight="SemiBold">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ThemeHalf}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Light}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource Light}" />
+                                                <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <CheckBox Content="Titles" IsChecked="{Binding Titles, Mode=OneWay}" Click="Titles_Click"
+                              Foreground="{StaticResource TextSecondary}" FontSize="11.5" VerticalAlignment="Center" Margin="14,0,0,0" />
+
+                    <StackPanel Orientation="Horizontal" Margin="14,0,0,0">
+                        <Button Click="ZoomOut_Click" Style="{StaticResource GhostIconButton}" ToolTip="Zoom out">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15b;" />
+                        </Button>
+                        <Button Click="ZoomReset_Click" Style="{StaticResource Flat}" MinWidth="44" ToolTip="Actual size">
+                            <TextBlock Text="{Binding ZoomLabel}" FontSize="11.5" FontWeight="SemiBold" />
+                        </Button>
+                        <Button Click="ZoomIn_Click" Style="{StaticResource GhostIconButton}" ToolTip="Zoom in">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
+                        </Button>
+                    </StackPanel>
+
+                    <Button Click="Export_Click" Style="{StaticResource PrimaryButton}" Height="32" Padding="12,0"
+                            t:Ui.CornerRadius="9" Margin="14,0,0,0" IsEnabled="{Binding HasExtracts}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
+                            <TextBlock Text="Export PDF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Grid>
+            <ex:PageBoard x:Name="Board" />
+
+            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16,0,16,12"
+                    Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    CornerRadius="8" Padding="10,5">
+                <TextBlock FontSize="11" Foreground="#a9adb2" TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Text" Value="{Binding LastExport}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LastExport}" Value="">
+                                    <Setter Property="Text" Value="Drag to move · corners to resize · Alt turns snapping off · Delete removes" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+        </Grid>
+    </DockPanel>
+</UserControl>

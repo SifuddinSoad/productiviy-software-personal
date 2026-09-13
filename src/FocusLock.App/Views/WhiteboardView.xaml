@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:FocusLock.App.ViewModels"
              xmlns:t="clr-namespace:FocusLock.App.Theme"
              xmlns:b="clr-namespace:FocusLock.App.Board"
+             xmlns:v="clr-namespace:FocusLock.App.Views"
              d:DataContext="{d:DesignInstance vm:WhiteboardViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
@@ -206,6 +207,10 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- everything under the top bar, so Arrange pages can cover it and still leave the timer and Emergency exit -->
+        <Grid>
+        <DockPanel>
 
         <!-- ============ right panel ============ -->
         <Border DockPanel.Dock="Right" Width="296" Background="{StaticResource Surface}"
@@ -428,8 +433,14 @@
                     <!-- export controls sit at the bottom, always reachable -->
                     <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="12,10">
                         <StackPanel>
-                            <CheckBox Content="Show titles on pages" IsChecked="{Binding ShowTitles}"
-                                      Foreground="{StaticResource TextSecondary}" FontSize="11.5" Margin="0,0,0,10" />
+                            <Button Click="Arrange_Click" Style="{StaticResource Flat}" Height="34" t:Ui.CornerRadius="9"
+                                    BorderThickness="1" BorderBrush="{StaticResource Border}" Foreground="{StaticResource Text}"
+                                    t:Ui.HoverBackground="{StaticResource Hover}" Margin="0,0,0,8">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe871;" />
+                                    <TextBlock Text="Arrange pages" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                </StackPanel>
+                            </Button>
                             <Button Click="ExportPdf_Click" Style="{StaticResource PrimaryButton}" Height="34" t:Ui.CornerRadius="9"
                                     IsEnabled="{Binding HasExtracts}">
                                 <StackPanel Orientation="Horizontal">
@@ -470,12 +481,10 @@
                                                         </TextBox.Style>
                                                     </TextBox>
                                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                        <Button Click="ExtractUp_Click" Style="{StaticResource GhostIconButton}" Width="22" Height="22" ToolTip="Move up">
-                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe5d8;" />
-                                                        </Button>
-                                                        <Button Click="ExtractDown_Click" Style="{StaticResource GhostIconButton}" Width="22" Height="22" ToolTip="Move down">
-                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe5db;" />
-                                                        </Button>
+                                                        <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,1" Margin="0,0,4,0"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding PageLabel}" FontSize="10" Foreground="{StaticResource TextSubtle}" />
+                                                        </Border>
                                                         <Button Click="ExtractShow_Click" Style="{StaticResource GhostIconButton}" Width="22" Height="22" ToolTip="Show on canvas">
                                                             <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe8f4;" />
                                                         </Button>
@@ -883,6 +892,13 @@
                     <TextBlock Text="{Binding Hint}" FontSize="11" Foreground="#d3d6d9" />
                 </Border>
             </StackPanel>
+        </Grid>
+        </DockPanel>
+
+        <!-- ============ arrange pages ============ -->
+        <Grid Visibility="{Binding IsArranging, Converter={StaticResource BoolToVis}}">
+            <v:PageLayoutView DataContext="{Binding Arrange}" />
+        </Grid>
         </Grid>
     </DockPanel>
 </UserControl>
