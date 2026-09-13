@@ -366,7 +366,7 @@ public sealed class BoardCanvas : Canvas
         if (e.ChangedButton == MouseButton.Left && e.ClickCount == 2)
         {
             var world = c.ToWorld(pt);
-            if (Bounds.ObjectAt(c.Doc.Objs, world) is { } hit)
+            if ((Bounds.ObjectAt(c.Doc.Objs, world) ?? Bounds.FrameLabelAt(c.Doc.Objs, world)) is { } hit)
             {
                 var cell = hit.Kind == ObjKind.Table ? CellIndexAt(hit, world) : -1;
                 c.Select([hit.Id]);

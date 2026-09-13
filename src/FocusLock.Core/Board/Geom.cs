@@ -106,4 +106,23 @@ public static class Bounds
         }
         return null;
     }
+
+    /// <summary>Height of the band above a frame where its label is drawn.</summary>
+    public const double FrameLabelHeight = 20;
+
+    /// <summary>
+    /// Topmost frame whose label band holds the point. <see cref="ObjectAt"/> skips frames so their
+    /// insides stay clickable, and the label sits outside the frame anyway, so the label needs its own
+    /// target. The band spans the frame's width, so an empty label can still be given a name.
+    /// </summary>
+    public static BoardObject? FrameLabelAt(IReadOnlyList<BoardObject> objs, Pt p)
+    {
+        for (var i = objs.Count - 1; i >= 0; i--)
+        {
+            var o = objs[i];
+            if (o.Kind != ObjKind.Frame) continue;
+            if (new Rect(o.X, o.Y - FrameLabelHeight, o.W, FrameLabelHeight).Contains(p)) return o;
+        }
+        return null;
+    }
 }

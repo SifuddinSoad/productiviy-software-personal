@@ -31,6 +31,29 @@ public class BoundsTests
         Assert.Equal("a", Bounds.ObjectAt(objs, new Pt(20, 20))!.Id);
         Assert.Null(Bounds.ObjectAt(objs, new Pt(300, 300)));   // only the frame is there
     }
+
+    [Fact]
+    public void A_frame_label_is_found_in_the_band_above_the_frame()
+    {
+        var frame = new BoardObject { Id = "f", Kind = ObjKind.Frame, X = 100, Y = 100, W = 420, H = 300 };
+        var sticky = new BoardObject { Id = "s", Kind = ObjKind.Sticky, X = 100, Y = 100, W = 150, H = 92 };
+        List<BoardObject> objs = [frame, sticky];
+
+        Assert.Equal("f", Bounds.FrameLabelAt(objs, new Pt(130, 90))!.Id);    // on the label text
+        Assert.Equal("f", Bounds.FrameLabelAt(objs, new Pt(500, 81))!.Id);    // anywhere along the top edge
+        Assert.Null(Bounds.FrameLabelAt(objs, new Pt(300, 250)));             // inside the frame
+        Assert.Null(Bounds.FrameLabelAt(objs, new Pt(130, 60)));              // well above it
+        Assert.Null(Bounds.FrameLabelAt(objs, new Pt(90, 90)));               // left of it
+    }
+
+    [Fact]
+    public void The_topmost_frame_label_wins()
+    {
+        var lower = new BoardObject { Id = "a", Kind = ObjKind.Frame, X = 0, Y = 100, W = 400, H = 300 };
+        var upper = new BoardObject { Id = "b", Kind = ObjKind.Frame, X = 50, Y = 100, W = 400, H = 300 };
+
+        Assert.Equal("b", Bounds.FrameLabelAt([lower, upper], new Pt(60, 90))!.Id);
+    }
 }
 
 public class ShapeGeometryTests
