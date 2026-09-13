@@ -56,7 +56,11 @@ public sealed partial class MainViewModel : ObservableObject
 
     void OpenPrevious(Session session)
     {
-        var vm = new WhiteboardViewModel(session, Runtime, readOnly: true);
+        var vm = new WhiteboardViewModel(session, Runtime, readOnly: true)
+        {
+            // the canvas stays untouched, but the extract list is worth keeping
+            SaveSession = () => _store.Save(session),
+        };
         vm.Back += GoHome;
         vm.Continue += s => GoSetup(SetupViewModel.ForContinue(s));
         Current = vm;

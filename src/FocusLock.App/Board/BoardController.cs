@@ -18,6 +18,7 @@ public static class Tool
     public const string Table = "table";
     public const string Prompt = "prompt";
     public const string Vote = "vote";
+    public const string Extract = "extract";
 }
 
 public sealed record DraftShape(string Kind, double X, double Y, double W, double H);
@@ -65,6 +66,14 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
 
     public event Action? Changed;
     public event Action<string, int>? EditRequested;
+
+    /// <summary>A region was boxed with the Extract tool; the view model turns it into a PDF item.</summary>
+    public event Action<Rect>? ExtractRequested;
+
+    /// <summary>Regions already picked out, outlined on the canvas so you can see what you have.</summary>
+    public List<Rect> ExtractOutlines { get; } = [];
+
+    public bool ShowExtractOutlines { get; set; }
 
     public void Notify() => Changed?.Invoke();
 
@@ -374,7 +383,8 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
             case Tool.Eraser: StartErase(world); return;
             case Tool.Shape when ShapeKind == "custom": AddPolygonPoint(world); return;
             case Tool.Shape:
-            case Tool.Frame: StartDraft(world, CurrentTool); return;
+            case Tool.Frame:
+            case Tool.Extract: StartDraft(world, CurrentTool); return;
             case Tool.Sticky: PlaceSticky(world); return;
             case Tool.Text: PlaceText(world); return;
             case Tool.Table: PlaceTable(world); return;
@@ -534,6 +544,17 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
             var d = Draft;
             Draft = null;
             if (d is null) return;
+
+            if (tool == Tool.Extract)
+            {
+                // a stray click should not add an empty page
+                if (d.W >= 20 && d.H >= 20)
+                    ExtractRequested?.Invoke(new Rect(Math.Round(d.X), Math.Round(d.Y), Math.Round(d.W), Math.Round(d.H)));
+                CurrentTool = Tool.Select;
+                Notify();
+                return;
+            }
+
             var w = d.W < 16 ? (tool == Tool.Frame ? 420 : 170) : d.W;
             var h = d.H < 16 ? (tool == Tool.Frame ? 300 : 90) : d.H;
             if (tool == Tool.Frame)

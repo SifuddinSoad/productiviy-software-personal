@@ -38,6 +38,7 @@ public partial class WhiteboardView : UserControl
     void Redo_Click(object s, RoutedEventArgs e) => C?.Redo();
     void TogglePlans_Click(object s, RoutedEventArgs e) => Vm?.TogglePlans();
     void TogglePrompt_Click(object s, RoutedEventArgs e) => Vm?.TogglePrompt();
+    void ToggleExtract_Click(object s, RoutedEventArgs e) => Vm?.ToggleExtract();
     void ClosePanel_Click(object s, RoutedEventArgs e) => Vm?.ClosePanel();
     void Deselect_Click(object s, RoutedEventArgs e) => C?.Deselect();
 
@@ -94,6 +95,27 @@ public partial class WhiteboardView : UserControl
     void AddPrompt_Click(object s, RoutedEventArgs e) => Vm?.AddPrompt();
     void FocusPrompt_Click(object s, RoutedEventArgs e) => Item<PromptCard>(s)?.Focus();
     void DeletePrompt_Click(object s, RoutedEventArgs e) => Item<PromptCard>(s)?.Delete();
+
+    // ---- extract ----
+    void ExtractTool_Click(object s, RoutedEventArgs e) => Vm?.StartExtractTool();
+    void ExportPdf_Click(object s, RoutedEventArgs e) => Vm?.ExportPdf();
+    void ExtractUp_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.MoveUp();
+    void ExtractDown_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.MoveDown();
+    void ExtractShow_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.Show();
+    void ExtractRemove_Click(object s, RoutedEventArgs e) => Item<ExtractCard>(s)?.Remove();
+
+    void ExtractName_LostFocus(object s, RoutedEventArgs e)
+    {
+        if (s is TextBox box && Item<ExtractCard>(s) is { } card) card.Rename(box.Text);
+    }
+
+    void ExtractName_KeyDown(object s, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || s is not TextBox box) return;
+        e.Handled = true;
+        Item<ExtractCard>(s)?.Rename(box.Text);
+        Canvas.Focus();
+    }
 
     void PlanName_LostFocus(object s, RoutedEventArgs e)
     {
@@ -156,6 +178,7 @@ public partial class WhiteboardView : UserControl
             Key.B => Tool.Table,
             Key.G => Tool.Prompt,
             Key.D => Tool.Vote,
+            Key.C => Tool.Extract,
             _ => null,
         };
         if (tool is not null)

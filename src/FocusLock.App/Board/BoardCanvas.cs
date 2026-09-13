@@ -105,14 +105,7 @@ public sealed class BoardCanvas : Canvas
         var doc = c.Doc;
         dc.PushTransform(new MatrixTransform(doc.Cam.Z, 0, 0, doc.Cam.Z, doc.Cam.X, doc.Cam.Y));
 
-        foreach (var o in doc.Objs.Where(o => o.Kind == ObjKind.Frame)) DrawFrame(dc, o);
-        DrawConnectors(dc, c);
-        foreach (var o in doc.Objs.Where(o => o.Kind == ObjKind.Table)) DrawTable(dc, o);
-        foreach (var o in doc.Objs.Where(o => o.Kind == ObjKind.Shape)) DrawShape(dc, o);
-        foreach (var o in doc.Objs.Where(o => o.Kind == ObjKind.Sticky)) DrawSticky(dc, o);
-        foreach (var o in doc.Objs.Where(o => o.Kind == ObjKind.Text)) DrawText(dc, o);
-        foreach (var o in doc.Objs.Where(o => o.Kind == ObjKind.Prompt)) DrawPrompt(dc, o);
-        DrawStrokes(dc, c);
+        BoardPainter.Paint(dc, doc, new PaintOptions(_editingId, _editingCell, c.SelectedConnectorIds, Dpi));
         DrawOverlays(dc, c);
 
         dc.Pop();
@@ -121,199 +114,25 @@ public sealed class BoardCanvas : Canvas
 
     static Rect ToRect(CoreRect r) => new(r.X, r.Y, Math.Max(0, r.W), Math.Max(0, r.H));
 
-    /// <summary>True while this text is live in the overlay editor, so the canvas must not draw it too.</summary>
-    bool IsEditingText(BoardObject o, int cell = -1) => _editingId == o.Id && _editingCell == cell;
-
-    /// <summary>The object's own fill, or the default for its kind.</summary>
-    static string FillOf(BoardObject o, string fallback) =>
-        string.IsNullOrEmpty(o.Fill) ? fallback : o.Fill;
-
-    /// <summary>The chosen text colour, else one that reads against the fill.</summary>
-    static Brush TextBrush(BoardObject o, string background, string? untinted = null)
-    {
-        if (!string.IsNullOrEmpty(o.TextColor)) return Theme.HexBrush.FromHex(o.TextColor);
-        if (untinted is not null && string.IsNullOrEmpty(o.Fill)) return Theme.HexBrush.FromHex(untinted);
-        return Theme.HexBrush.FromHex(Palette.TextOn(background));
-    }
-
-    void DrawFrame(DrawingContext dc, BoardObject o)
-    {
-        var fill = FillOf(o, "#16181b");
-        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), B.FramePen, new Rect(o.X, o.Y, o.W, o.H), 3, 3);
-        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
-        {
-            // the label sits above the frame on the canvas, so it keeps the muted colour by default
-            var brush = string.IsNullOrEmpty(o.TextColor) ? B.FrameLabel : Theme.HexBrush.FromHex(o.TextColor);
-            dc.DrawText(Ft(o.Text, Fonts.Sans, 11, FontWeights.SemiBold, brush), new Point(o.X, o.Y - 19));
-        }
-    }
-
-    void DrawConnectors(DrawingContext dc, BoardController c)
+    /// <summary>The line that follows the pointer while a connector is being drawn.</summary>
+    void DrawConnectorRubberBand(DrawingContext dc, BoardController c)
     {
         var byId = c.Doc.Objs.ToDictionary(o => o.Id);
-        foreach (var conn in c.Doc.Conns)
-        {
-            if (!BoardController.TryResolve(conn, byId, out var a, out var b)) continue;
-            var path = ConnectorGeometry.Compute(conn, a, b);
-            var selected = c.SelectedConnectorIds.Contains(conn.Id);
-            var thickness = selected ? 3.2 : 1.7;
-            var pen = path.Dash is { } dash
-                ? B.Dashed(B.Connector, thickness, dash[0], dash[1])
-                : B.Frozen(new Pen(B.Connector, thickness) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round });
-            dc.DrawGeometry(null, pen, Geometry.Parse(path.Data));
-            if (path.Heads != "M 0 0") dc.DrawGeometry(B.Connector, null, Geometry.Parse(path.Heads));
-        }
-
-        // rubber band while a connector is being drawn, from an object or from a bare point
         CorePt? start = null;
         if (c.ConnectorFrom is { } fromId && byId.TryGetValue(fromId, out var from))
             start = ConnectorGeometry.Attach(from, c.MouseWorld.X, c.MouseWorld.Y, 2);
         else if (c.ConnectorFromPoint is { } p)
             start = p;
 
-        if (start is { } s)
-        {
-            dc.DrawLine(B.Dashed(B.Connector, 1.5, 6, 5), new Point(s.X, s.Y), new Point(c.MouseWorld.X, c.MouseWorld.Y));
-            dc.DrawEllipse(B.Canvas, B.Frozen(new Pen(B.Connector, 1.5)), new Point(s.X, s.Y), 3.5, 3.5);
-        }
-    }
-
-    void DrawTable(DrawingContext dc, BoardObject o)
-    {
-        var cols = o.Cols ?? 1;
-        var rows = o.Rows ?? 1;
-        var cellW = o.W / cols;
-        const double cellH = 32;
-        var rect = new Rect(o.X, o.Y, o.W, rows * cellH);
-
-        var fill = FillOf(o, "#1b1d20");
-        var header = Palette.Shade(fill, Palette.IsLight(fill) ? 0.92 : 1.18);
-        var lines = Theme.HexBrush.FromHex(Palette.Shade(fill, Palette.IsLight(fill) ? 0.85 : 1.45));
-        var linePen = B.Frozen(new Pen(lines, 1));
-        var textBrush = TextBrush(o, fill, B.Light.ToString());
-
-        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), B.TablePen, rect, 4, 4);
-        for (var i = 0; i < rows * cols; i++)
-        {
-            var r = i / cols;
-            var col = i % cols;
-            var cell = new Rect(o.X + col * cellW, o.Y + r * cellH, cellW, cellH);
-            if (r == 0) dc.DrawRectangle(Theme.HexBrush.FromHex(header), null, cell);
-            dc.DrawLine(linePen, new Point(cell.Right, cell.Top), new Point(cell.Right, cell.Bottom));
-            dc.DrawLine(linePen, new Point(cell.Left, cell.Bottom), new Point(cell.Right, cell.Bottom));
-
-            var text = o.Cells is { } cells && i < cells.Count ? cells[i] : "";
-            if (text.Length == 0 || IsEditingText(o, i)) continue;
-            var ft = Ft(text, Fonts.Sans, 12, r == 0 ? FontWeights.SemiBold : FontWeights.Normal, textBrush, cellW - 18);
-            ft.MaxLineCount = 1;
-            ft.Trimming = TextTrimming.CharacterEllipsis;
-            dc.DrawText(ft, new Point(cell.Left + 9, cell.Top + 7));
-        }
-    }
-
-    void DrawShape(DrawingContext dc, BoardObject o)
-    {
-        var fill = FillOf(o, "#ffffff");
-        var geometry = Geometry.Parse(ShapeGeometry.Path(o, o.W, o.H));
-        dc.PushTransform(new TranslateTransform(o.X, o.Y));
-        dc.DrawGeometry(Theme.HexBrush.FromHex(fill), B.ShapePen, geometry);
-
-        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
-        {
-            var maxW = o.W * ShapeGeometry.TextWidthFactor(o);
-            var ft = Ft(o.Text, Fonts.Sans, 13, FontWeights.Medium, TextBrush(o, fill), maxW, TextAlignment.Center);
-            dc.DrawText(ft, new Point((o.W - maxW) / 2, (o.H - ft.Height) / 2));
-        }
-        dc.Pop();
-
-        if (o.Votes > 0) DrawVoteBadge(dc, o.X + o.W + 9, o.Y - 11, o.Votes);
-    }
-
-    void DrawVoteBadge(DrawingContext dc, double right, double top, int votes)
-    {
-        var ft = Ft(votes.ToString(), Fonts.Sans, 11, FontWeights.Bold, B.White);
-        var w = ft.Width + 26;
-        var rect = new Rect(right - w, top, w, 22);
-        dc.DrawRoundedRectangle(B.Badge, null, rect, 11, 11);
-        dc.DrawEllipse(B.Yellow, null, new Point(rect.Left + 12, rect.Top + 11), 3.5, 3.5);
-        dc.DrawText(ft, new Point(rect.Left + 19, rect.Top + (22 - ft.Height) / 2));
-    }
-
-    void DrawSticky(DrawingContext dc, BoardObject o)
-    {
-        var pushed = false;
-        if (o.Rot != 0)
-        {
-            dc.PushTransform(new RotateTransform(o.Rot, o.X + o.W / 2, o.Y + o.H / 2));
-            pushed = true;
-        }
-
-        var fill = FillOf(o, "#f2d06b");
-        dc.DrawRectangle(B.Shadow, null, new Rect(o.X + 2, o.Y + 6, o.W, o.H));
-        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), null, new Rect(o.X, o.Y, o.W, o.H), 2, 2);
-
-        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
-            dc.DrawText(Ft(o.Text, Fonts.Sans, 13.5, FontWeights.Medium, TextBrush(o, fill), o.W - 24), new Point(o.X + 12, o.Y + 12));
-
-        if (o.Votes > 0)
-        {
-            var ft = Ft(o.Votes.ToString(), Fonts.Sans, 10, FontWeights.Bold, B.White);
-            var rect = new Rect(o.X + 12, o.Y + o.H - 26, ft.Width + 22, 17);
-            dc.DrawRoundedRectangle(B.Badge, null, rect, 9, 9);
-            dc.DrawEllipse(B.White, null, new Point(rect.Left + 9, rect.Top + 8.5), 3, 3);
-            dc.DrawText(ft, new Point(rect.Left + 15, rect.Top + (17 - ft.Height) / 2));
-        }
-
-        if (pushed) dc.Pop();
-    }
-
-    void DrawText(DrawingContext dc, BoardObject o)
-    {
-        if (string.IsNullOrEmpty(o.Text) || IsEditingText(o)) return;
-        var weight = FontWeight.FromOpenTypeWeight(Math.Clamp(o.Weight ?? 600, 100, 900));
-        // free text sits on the canvas, so its own colour wins and the default stays light
-        var brush = string.IsNullOrEmpty(o.TextColor) ? B.Light : Theme.HexBrush.FromHex(o.TextColor);
-        dc.DrawText(Ft(o.Text, Fonts.Sans, o.Size ?? 20, weight, brush, o.W), new Point(o.X, o.Y));
-    }
-
-    void DrawPrompt(DrawingContext dc, BoardObject o)
-    {
-        var rect = new Rect(o.X, o.Y, o.W, 104);
-        var fill = FillOf(o, "#1c1e21");
-        dc.DrawRectangle(B.Shadow, null, new Rect(rect.X + 2, rect.Y + 6, rect.Width, rect.Height));
-        dc.DrawRoundedRectangle(Theme.HexBrush.FromHex(fill), B.PromptPen, rect, 8, 8);
-
-        var label = Theme.HexBrush.FromHex(Palette.IsLight(fill) ? Palette.Shade(fill, 0.45) : "#9aa0a6");
-        dc.DrawText(Ft(Theme.Icons.EditNote, Fonts.Icons, 14, FontWeights.Light, B.Yellow), new Point(rect.X + 12, rect.Y + 11));
-        dc.DrawText(Ft("PROMPT", Fonts.Mono, 9.5, FontWeights.Normal, label), new Point(rect.X + 32, rect.Y + 13));
-
-        if (!string.IsNullOrEmpty(o.Text) && !IsEditingText(o))
-        {
-            var ft = Ft(o.Text, Fonts.Mono, 11.5, FontWeights.Normal, TextBrush(o, fill, B.PromptText.ToString()), o.W - 24);
-            ft.MaxTextHeight = 64;
-            ft.Trimming = TextTrimming.CharacterEllipsis;
-            dc.DrawText(ft, new Point(rect.X + 12, rect.Y + 34));
-        }
-    }
-
-    void DrawStrokes(DrawingContext dc, BoardController c)
-    {
-        foreach (var s in c.Doc.Strokes)
-        {
-            if (s.Pts.Count < 2) continue;
-            var pen = new Pen(Theme.HexBrush.FromHex(s.Color), s.W)
-            {
-                StartLineCap = PenLineCap.Round,
-                EndLineCap = PenLineCap.Round,
-                LineJoin = PenLineJoin.Round,
-            };
-            dc.DrawGeometry(null, pen, Geometry.Parse(StrokePath.Of(s.Pts)));
-        }
+        if (start is not { } s) return;
+        dc.DrawLine(B.Dashed(B.Connector, 1.5, 6, 5), new Point(s.X, s.Y), new Point(c.MouseWorld.X, c.MouseWorld.Y));
+        dc.DrawEllipse(B.Canvas, B.Frozen(new Pen(B.Connector, 1.5)), new Point(s.X, s.Y), 3.5, 3.5);
     }
 
     void DrawOverlays(DrawingContext dc, BoardController c)
     {
         var z = c.Doc.Cam.Z;
+        DrawConnectorRubberBand(dc, c);
 
         if (c.PolyPoints is { Count: > 0 } poly)
         {
@@ -324,9 +143,25 @@ public sealed class BoardCanvas : Canvas
                 dc.DrawEllipse(B.Canvas, B.Frozen(new Pen(B.Light, 1.5)), new Point(p.X, p.Y), 4, 4);
         }
 
+        // regions already picked for the PDF, so you can see what has been taken
+        if (c.ShowExtractOutlines || c.CurrentTool == Tool.Extract)
+        {
+            var pen = B.Dashed(B.Green, 1.6 / z, 7 / z, 5 / z);
+            for (var i = 0; i < c.ExtractOutlines.Count; i++)
+            {
+                var r = c.ExtractOutlines[i];
+                dc.DrawRectangle(null, pen, ToRect(r));
+
+                var ft = BoardPainter.Ft($"{i + 1}", Fonts.Mono, 11 / z, FontWeights.Bold, B.OnLight, Dpi);
+                var badge = new Rect(r.X, r.Y - 20 / z, ft.Width + 12 / z, 17 / z);
+                dc.DrawRoundedRectangle(B.Green, null, badge, 4 / z, 4 / z);
+                dc.DrawText(ft, new Point(badge.X + 6 / z, badge.Y + 1 / z));
+            }
+        }
+
         if (c.Draft is { } d)
         {
-            var kind = d.Kind == Tool.Frame ? "rect" : c.ShapeKind;
+            var kind = d.Kind is Tool.Frame or Tool.Extract ? "rect" : c.ShapeKind;
             var data = ShapeGeometry.Path(kind, null, Math.Max(1, d.W), Math.Max(1, d.H));
             dc.PushTransform(new TranslateTransform(d.X, d.Y));
             dc.DrawGeometry(B.DraftFill, B.Dashed(B.Light, 1.5, 5, 4), Geometry.Parse(data));
@@ -441,7 +276,7 @@ public sealed class BoardCanvas : Canvas
             y = o.Y + _editingCell / cols * 32 + 7;
             w = cellW - 18;
             fontSize = 12;
-            fg = TextBrush(o, FillOf(o, "#1b1d20"), B.Light.ToString());
+            fg = BoardPainter.TextBrush(o, BoardPainter.FillOf(o, "#1b1d20"), B.Light.ToString());
         }
         else
         {
@@ -449,7 +284,7 @@ public sealed class BoardCanvas : Canvas
             {
                 case ObjKind.Sticky:
                     x = o.X + 12; y = o.Y + 12; w = o.W - 24; fontSize = 13.5;
-                    fg = TextBrush(o, FillOf(o, "#f2d06b"));
+                    fg = BoardPainter.TextBrush(o, BoardPainter.FillOf(o, "#f2d06b"));
                     break;
                 case ObjKind.Text:
                     x = o.X; y = o.Y; w = o.W; fontSize = o.Size ?? 20;
@@ -459,7 +294,7 @@ public sealed class BoardCanvas : Canvas
                 case ObjKind.Prompt:
                     x = o.X + 12; y = o.Y + 34; w = o.W - 24; fontSize = 11.5;
                     family = Fonts.Mono;
-                    fg = TextBrush(o, FillOf(o, "#1c1e21"), B.PromptText.ToString());
+                    fg = BoardPainter.TextBrush(o, BoardPainter.FillOf(o, "#1c1e21"), B.PromptText.ToString());
                     break;
                 case ObjKind.Frame:
                     x = o.X; y = o.Y - 19; w = Math.Max(120, o.W / 2); fontSize = 11;
@@ -469,7 +304,7 @@ public sealed class BoardCanvas : Canvas
                 default:
                     var maxW = o.W * ShapeGeometry.TextWidthFactor(o);
                     x = o.X + (o.W - maxW) / 2; y = o.Y + b.H / 2 - fontSizeGuess(13) / 2; w = maxW; fontSize = 13;
-                    fg = TextBrush(o, FillOf(o, "#ffffff"));
+                    fg = BoardPainter.TextBrush(o, BoardPainter.FillOf(o, "#ffffff"));
                     break;
             }
         }

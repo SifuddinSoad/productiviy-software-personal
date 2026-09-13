@@ -47,4 +47,8 @@ public static class Icons
     public const string Visibility = "";
     public const string PlayArrow = "";
     public const string Timer = "";
+    public const string PictureAsPdf = "";
+    public const string Crop = "";
+    public const string ArrowUp = "";
+    public const string ArrowDown = "";
 }

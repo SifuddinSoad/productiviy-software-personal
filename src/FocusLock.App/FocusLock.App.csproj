@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
   </ItemGroup>
 
   <ItemGroup>

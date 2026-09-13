@@ -22,6 +22,7 @@ internal static class B
     public static readonly Brush PromptText = HexBrush.FromHex("#e4e6e8");
     public static readonly Brush PromptLabel = HexBrush.FromHex("#9aa0a6");
     public static readonly Brush Yellow = HexBrush.FromHex("#f2d06b");
+    public static readonly Brush Green = HexBrush.FromHex("#8fd18a");
     public static readonly Brush Badge = HexBrush.FromHex("#17181a");
     public static readonly Brush White = Brushes.White;
     public static readonly Brush Shadow = new SolidColorBrush(Color.FromArgb(60, 0, 0, 0));

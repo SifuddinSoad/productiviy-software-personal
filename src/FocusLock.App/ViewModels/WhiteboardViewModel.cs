@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FocusLock.App.Board;
@@ -8,6 +10,7 @@ using FocusLock.Core;
 using FocusLock.Core.Board;
 using FocusLock.Core.Models;
 using FocusLock.Core.Sessions;
+using CoreRect = FocusLock.Core.Board.Rect;
 
 namespace FocusLock.App.ViewModels;
 
@@ -35,6 +38,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public ObservableCollection<Swatch> TextSwatches { get; } = [];
     public ObservableCollection<PlanCard> Plans { get; } = [];
     public ObservableCollection<PromptCard> Prompts { get; } = [];
+    public ObservableCollection<ExtractCard> Extracts { get; } = [];
 
     [ObservableProperty] string _timerLabel = "";
     [ObservableProperty] bool _isFinished;
@@ -67,12 +71,14 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
 
         Controller = new BoardController(session.Plans[0].Doc, readOnly);
         Controller.Changed += OnBoardChanged;
+        Controller.ExtractRequested += AddExtract;
 
         BuildTools();
         BuildPalettes();
         RebuildPlans();
         CurrentPlan = Plans[0];
         RefreshPrompts();
+        RebuildExtracts();
 
         _timerLabel = readOnly ? Progress.StateLabel(session) : runtime!.TimerLabel;
         _isFinished = !readOnly && runtime!.IsFinished;
@@ -159,7 +165,12 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         OnPropertyChanged(nameof(IsPromptPanel));
         OnPropertyChanged(nameof(IsPropsPanel));
         OnPropertyChanged(nameof(IsConnPanel));
+        OnPropertyChanged(nameof(IsExtractPanel));
         OnPropertyChanged(nameof(ShowPanel));
+
+        // the outlines are only worth showing while the extract list is open
+        Controller.ShowExtractOutlines = value == "extract";
+        Controller.Notify();
     }
 
     public bool ShowPanel => Panel != "none";
@@ -210,6 +221,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
             (Tool.Table, Icons.TableChart, "Table (B)", "Click to insert a 3×3 table", false),
             (Tool.Prompt, Icons.EditNote, "Prompt card (G)", "Click anywhere to place a prompt card", true),
             (Tool.Vote, Icons.RadioChecked, "Vote dots (D)", "Click objects to add dots", false),
+            (Tool.Extract, Icons.Crop, "Extract to PDF (C)", "Drag a box around the part you want in the PDF", true),
         ];
 
         foreach (var (id, icon, title, hint, gap) in defs)
@@ -325,6 +337,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         OnPropertyChanged(nameof(PlanName));
         OnPropertyChanged(nameof(PlanMeta));
         RefreshPrompts();
+        RefreshExtractOutlines();
         foreach (var p in Plans) p.Refresh();
     }
 
@@ -390,6 +403,121 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     }
 
     public void AddPrompt() => Controller.SetTool(Tool.Prompt);
+
+    // ---------------------------------------------------------------- extracts
+
+    /// <summary>Set by MainViewModel so a read-only session can still keep its extract list.</summary>
+    public Action? SaveSession { get; set; }
+
+    public bool IsExtractPanel => Panel == "extract";
+    public string ExtractCountLabel => Extracts.Count.ToString();
+    public bool HasExtracts => Extracts.Count > 0;
+
+    [ObservableProperty] bool _showTitles;
+    [ObservableProperty] string _lastExport = "";
+
+    public void ToggleExtract() => Panel = Panel == "extract" ? "none" : "extract";
+
+    void AddExtract(CoreRect region)
+    {
+        if (CurrentPlan is not { } plan) return;
+        Session.Extracts.Add(new ExtractItem
+        {
+            Id = Ids.New("x"),
+            PlanId = plan.Plan.Id,
+            Name = $"Extract {Session.Extracts.Count + 1}",
+            X = region.X, Y = region.Y, W = region.W, H = region.H,
+        });
+        RebuildExtracts();
+        Panel = "extract";
+        Persist();
+    }
+
+    void RebuildExtracts()
+    {
+        Extracts.Clear();
+        foreach (var item in Session.Extracts)
+            Extracts.Add(new ExtractCard(item, this));
+        RefreshExtractOutlines();
+        OnPropertyChanged(nameof(ExtractCountLabel));
+        OnPropertyChanged(nameof(HasExtracts));
+    }
+
+    /// <summary>Only the regions belonging to the plan on screen can be outlined on it.</summary>
+    void RefreshExtractOutlines()
+    {
+        Controller.ExtractOutlines.Clear();
+        if (CurrentPlan is { } plan)
+            foreach (var item in Session.Extracts.Where(e => e.PlanId == plan.Plan.Id))
+                Controller.ExtractOutlines.Add(new CoreRect(item.X, item.Y, item.W, item.H));
+        Controller.ShowExtractOutlines = IsExtractPanel;
+        Controller.Notify();
+    }
+
+    public void RemoveExtract(ExtractCard card)
+    {
+        Session.Extracts.RemoveAll(e => e.Id == card.Item.Id);
+        RebuildExtracts();
+        Persist();
+    }
+
+    public void MoveExtract(ExtractCard card, int delta)
+    {
+        var index = Session.Extracts.FindIndex(e => e.Id == card.Item.Id);
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= Session.Extracts.Count) return;
+
+        (Session.Extracts[index], Session.Extracts[target]) = (Session.Extracts[target], Session.Extracts[index]);
+        RebuildExtracts();
+        Persist();
+    }
+
+    public void RenameExtract(ExtractCard card, string name)
+    {
+        card.Item.Name = name.Trim();
+        Persist();
+    }
+
+    /// <summary>Brings the region into view, so you can check what a card actually holds.</summary>
+    public void ShowExtract(ExtractCard card)
+    {
+        var plan = Plans.FirstOrDefault(p => p.Plan.Id == card.Item.PlanId);
+        if (plan is not null && plan != CurrentPlan) OpenPlan(plan);
+
+        var cam = Controller.Doc.Cam;
+        cam.X = Controller.ViewportWidth / 2 - (card.Item.X + card.Item.W / 2) * cam.Z;
+        cam.Y = Controller.ViewportHeight / 2 - (card.Item.Y + card.Item.H / 2) * cam.Z;
+        Controller.Notify();
+    }
+
+    public void StartExtractTool() => Controller.SetTool(Tool.Extract);
+
+    /// <summary>Writes the PDF and reports where it went, or what went wrong.</summary>
+    public void ExportPdf()
+    {
+        if (Extracts.Count == 0) return;
+
+        var path = Export.ExportTarget.Choose(Session, locked: _runtime is { IsRunning: true });
+        if (path is null) return;
+
+        try
+        {
+            var pages = Export.PdfExporter.Write(Session, path, ShowTitles);
+            LastExport = pages == 0
+                ? "Nothing to export — those regions' plans are gone."
+                : $"Saved {pages} page{(pages == 1 ? "" : "s")} to {path}";
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LastExport = $"Could not write the file: {e.Message}";
+        }
+    }
+
+    void Persist()
+    {
+        if (ReadOnly) SaveSession?.Invoke();
+        else Save();
+    }
 
     // ---------------------------------------------------------------- saving
 
@@ -485,6 +613,35 @@ public sealed partial class PlanCard(Plan plan, WhiteboardViewModel owner) : Obs
         if (span.TotalDays < 1) return $"{(int)span.TotalHours}h";
         return $"{(int)span.TotalDays}d";
     }
+}
+
+public sealed partial class ExtractCard(ExtractItem item, WhiteboardViewModel owner) : ObservableObject
+{
+    public ExtractItem Item { get; } = item;
+
+    public string Name => Item.Name;
+    public string PlanName => owner.Plans.FirstOrDefault(p => p.Plan.Id == Item.PlanId)?.Name ?? "removed plan";
+    public string SizeLabel => $"{Math.Round(Item.W)} × {Math.Round(Item.H)}";
+
+    /// <summary>Drawn from the canvas each time the list is rebuilt, so it follows any edits.</summary>
+    public ImageSource? Thumbnail
+    {
+        get
+        {
+            var plan = owner.Plans.FirstOrDefault(p => p.Plan.Id == Item.PlanId)?.Plan;
+            if (plan is null || Item.W <= 0 || Item.H <= 0) return null;
+
+            const double maxSide = 220;
+            var scale = Math.Min(1, maxSide / Math.Max(Item.W, Item.H));
+            return RegionRenderer.Render(plan.Doc, new CoreRect(Item.X, Item.Y, Item.W, Item.H), scale);
+        }
+    }
+
+    public void Remove() => owner.RemoveExtract(this);
+    public void MoveUp() => owner.MoveExtract(this, -1);
+    public void MoveDown() => owner.MoveExtract(this, 1);
+    public void Rename(string name) => owner.RenameExtract(this, name);
+    public void Show() => owner.ShowExtract(this);
 }
 
 public sealed class PromptCard(BoardObject obj, WhiteboardViewModel owner)

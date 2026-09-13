@@ -165,6 +165,40 @@
                             </Border>
                         </StackPanel>
                     </Button>
+
+                    <Button Click="ToggleExtract_Click" Style="{StaticResource Flat}" Height="32" t:Ui.CornerRadius="9"
+                            Margin="6,0,0,0" Foreground="{StaticResource TextSecondary}"
+                            t:Ui.HoverBackground="{StaticResource Hover}"
+                            ToolTip="Pick parts of the canvas for a PDF">
+                        <StackPanel Orientation="Horizontal" Margin="11,0">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
+                            <TextBlock Text="Extract" FontSize="12.5" VerticalAlignment="Center" Margin="6,0" />
+                            <Border CornerRadius="5" Padding="5,1" VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#26292d" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasExtracts}" Value="True">
+                                                <Setter Property="Background" Value="#33383e" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding ExtractCountLabel}" FontSize="10.5">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasExtracts}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource Text}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                        </StackPanel>
+                    </Button>
                     <Button Click="TogglePlans_Click" Style="{StaticResource PrimaryButton}" Height="32" t:Ui.CornerRadius="9" Margin="6,0,0,0">
                         <StackPanel Orientation="Horizontal" Margin="12,0">
                             <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe9b0;" />
@@ -338,6 +372,118 @@
                                     Visibility="{Binding HasPrompts, Converter={StaticResource BoolToVisInv}}">
                                 <TextBlock Text="No prompts on this plan yet." FontSize="11.5" Foreground="#8a9096"
                                            TextAlignment="Center" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+
+                <!-- Extract -->
+                <DockPanel Visibility="{Binding IsExtractPanel, Converter={StaticResource BoolToVis}}">
+                    <Border DockPanel.Dock="Top" Height="46" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <Grid Margin="14,0,12,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Extract" FontSize="13" FontWeight="SemiBold" />
+                                <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,2" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding ExtractCountLabel}" FontSize="10.5" Foreground="{StaticResource TextSubtle}" />
+                                </Border>
+                            </StackPanel>
+                            <Button Click="ClosePanel_Click" Style="{StaticResource GhostIconButton}" HorizontalAlignment="Right">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5cd;" />
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <Border DockPanel.Dock="Top" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="12,11">
+                        <StackPanel>
+                            <Button Click="ExtractTool_Click" Style="{StaticResource PrimaryButton}" Height="34" t:Ui.CornerRadius="9">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe3be;" />
+                                    <TextBlock Text="Pick a region" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="Drag a box on the canvas around the part you want." FontSize="10.5"
+                                       Foreground="#8a9096" TextWrapping="Wrap" Margin="0,7,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- export controls sit at the bottom, always reachable -->
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="12,10">
+                        <StackPanel>
+                            <CheckBox Content="Show titles on pages" IsChecked="{Binding ShowTitles}"
+                                      Foreground="{StaticResource TextSecondary}" FontSize="11.5" Margin="0,0,0,10" />
+                            <Button Click="ExportPdf_Click" Style="{StaticResource PrimaryButton}" Height="34" t:Ui.CornerRadius="9"
+                                    IsEnabled="{Binding HasExtracts}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
+                                    <TextBlock Text="Export PDF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="{Binding LastExport}" FontSize="10.5" Foreground="#8a9096"
+                                       TextWrapping="Wrap" Margin="0,8,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Extracts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:ExtractCard}">
+                                        <Border Background="#1a1c1f" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                                CornerRadius="10" Padding="9" Margin="0,0,0,7">
+                                            <StackPanel>
+                                                <Border CornerRadius="6" ClipToBounds="True" Background="{StaticResource CanvasBg}"
+                                                        BorderBrush="{StaticResource BorderAlt}" BorderThickness="1">
+                                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" MaxHeight="130" Margin="1" />
+                                                </Border>
+
+                                                <Grid Margin="0,8,0,0">
+                                                    <TextBox Text="{Binding Name, Mode=OneWay}" LostFocus="ExtractName_LostFocus"
+                                                             KeyDown="ExtractName_KeyDown" FontSize="12.5" FontWeight="SemiBold"
+                                                             HorizontalAlignment="Left" Width="150" VerticalContentAlignment="Center">
+                                                        <TextBox.Style>
+                                                            <Style TargetType="TextBox" BasedOn="{StaticResource InputBox}">
+                                                                <Setter Property="Height" Value="22" />
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                                <Setter Property="t:Ui.FocusBorderBrush" Value="Transparent" />
+                                                            </Style>
+                                                        </TextBox.Style>
+                                                    </TextBox>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                        <Button Click="ExtractUp_Click" Style="{StaticResource GhostIconButton}" Width="22" Height="22" ToolTip="Move up">
+                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe5d8;" />
+                                                        </Button>
+                                                        <Button Click="ExtractDown_Click" Style="{StaticResource GhostIconButton}" Width="22" Height="22" ToolTip="Move down">
+                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe5db;" />
+                                                        </Button>
+                                                        <Button Click="ExtractShow_Click" Style="{StaticResource GhostIconButton}" Width="22" Height="22" ToolTip="Show on canvas">
+                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe8f4;" />
+                                                        </Button>
+                                                        <Button Click="ExtractRemove_Click" Style="{StaticResource GhostIconButton}" Width="22" Height="22" ToolTip="Remove"
+                                                                t:Ui.HoverForeground="{StaticResource Danger}">
+                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe5cd;" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding PlanName}" FontSize="10.5" Foreground="{StaticResource TextDim}"
+                                                               MaxWidth="150" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="·" Foreground="{StaticResource TextDim}" Margin="6,0" />
+                                                    <TextBlock Style="{StaticResource Mono}" Text="{Binding SizeLabel}" FontSize="10"
+                                                               Foreground="{StaticResource TextDim}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Border BorderBrush="#33383e" BorderThickness="1" CornerRadius="10" Padding="16"
+                                    Visibility="{Binding HasExtracts, Converter={StaticResource BoolToVisInv}}">
+                                <TextBlock Text="Nothing picked yet. Use the Extract tool and drag a box around a diagram."
+                                           FontSize="11.5" Foreground="#8a9096" TextAlignment="Center" TextWrapping="Wrap" />
                             </Border>
                         </StackPanel>
                     </ScrollViewer>
