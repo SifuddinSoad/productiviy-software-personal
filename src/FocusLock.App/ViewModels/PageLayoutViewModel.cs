@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FocusLock.App.Board;
+using FocusLock.Core.Document;
 using FocusLock.Core.Export;
 using FocusLock.Core.Models;
 using CoreRect = FocusLock.Core.Board.Rect;
@@ -44,6 +45,29 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         PageLayout.Complete(owner.Session);
         Deck = new PageDeck(owner.Session);
         _owner.PropertyChanged += OnOwnerChanged;
+        if (IsDocument) Document = new DocumentEditorViewModel(owner);
+    }
+
+    // ---------------------------------------------------------------- mode
+
+    public bool IsDocument => Session.PdfMode == PdfMode.Document;
+
+    /// <summary>The document editor, made the first time Document mode is used on this screen.</summary>
+    public DocumentEditorViewModel? Document { get; private set; }
+
+    public bool CanExport => _owner.CanExport;
+
+    public void SetMode(string mode)
+    {
+        if (Session.PdfMode == mode) return;
+        Document?.Flush();
+        Session.PdfMode = mode;
+        if (mode == PdfMode.Document) Document ??= new DocumentEditorViewModel(_owner);
+        OnPropertyChanged(nameof(IsDocument));
+        OnPropertyChanged(nameof(Document));
+        OnPropertyChanged(nameof(CanExport));
+        _owner.PersistLayout();
+        Changed?.Invoke();
     }
 
     /// <summary>Stops listening to the whiteboard once the screen closes.</summary>
@@ -117,6 +141,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
     {
         if (SelectedId is not { } id) return;
         Deck.Remove(id);
+        Core.Document.DocOps.RemoveSections(Session.Document, id);
         SelectedId = null;
         Commit();
     }
@@ -144,6 +169,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         OnPropertyChanged(nameof(CanUndo));
         OnPropertyChanged(nameof(CanRedo));
         OnPropertyChanged(nameof(HasExtracts));
+        OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(PageCountLabel));
         Changed?.Invoke();
     }

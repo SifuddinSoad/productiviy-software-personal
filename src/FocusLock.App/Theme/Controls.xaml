@@ -13,6 +13,7 @@
     <t:HexBrushConverter x:Key="HexBrush" />
     <t:GapToMarginConverter x:Key="GapToMargin" />
     <t:NotConverter x:Key="Not" />
+    <t:EqualsConverter x:Key="Equals" />
     <t:AllTrueToVisibilityConverter x:Key="AllTrueToVis" />
 
     <!-- Material Symbols glyph -->

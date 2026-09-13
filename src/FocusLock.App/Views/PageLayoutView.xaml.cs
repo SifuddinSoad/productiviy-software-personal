@@ -22,6 +22,8 @@ public partial class PageLayoutView : UserControl
     void Refocus() => Board.Focus();
 
     void Close_Click(object s, RoutedEventArgs e) => Vm?.Close();
+    void FreeMode_Click(object s, RoutedEventArgs e) { Vm?.SetMode(FocusLock.Core.Document.PdfMode.Free); Refocus(); }
+    void DocumentMode_Click(object s, RoutedEventArgs e) => Vm?.SetMode(FocusLock.Core.Document.PdfMode.Document);
     void Undo_Click(object s, RoutedEventArgs e) { Vm?.Undo(); Refocus(); }
     void Redo_Click(object s, RoutedEventArgs e) { Vm?.Redo(); Refocus(); }
     void Dark_Click(object s, RoutedEventArgs e) { Vm?.SetLight(false); Refocus(); }

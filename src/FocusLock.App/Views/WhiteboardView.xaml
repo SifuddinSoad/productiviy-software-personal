@@ -442,7 +442,7 @@
                                 </StackPanel>
                             </Button>
                             <Button Click="ExportPdf_Click" Style="{StaticResource PrimaryButton}" Height="34" t:Ui.CornerRadius="9"
-                                    IsEnabled="{Binding HasExtracts}">
+                                    IsEnabled="{Binding CanExport}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
                                     <TextBlock Text="Export PDF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />

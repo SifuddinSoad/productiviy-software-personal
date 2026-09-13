@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:FocusLock.App.ViewModels"
              xmlns:t="clr-namespace:FocusLock.App.Theme"
              xmlns:ex="clr-namespace:FocusLock.App.Export"
+             xmlns:v="clr-namespace:FocusLock.App.Views"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d"
@@ -35,20 +36,56 @@
                         </StackPanel>
                     </Button>
                     <TextBlock Text="Arrange pages" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="14,0,0,0" />
-                    <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,2" Margin="8,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding PageCountLabel}" FontSize="10.5" Foreground="{StaticResource TextSubtle}" />
+
+                    <!-- which of the two builds the PDF -->
+                    <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="2" Margin="14,0,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Click="FreeMode_Click" Content="Free layout" FontSize="11.5" FontWeight="SemiBold">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ThemeHalf}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDocument}" Value="False">
+                                                <Setter Property="Background" Value="{StaticResource Light}" />
+                                                <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Click="DocumentMode_Click" Content="Document" FontSize="11.5" FontWeight="SemiBold">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource ThemeHalf}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDocument}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource Light}" />
+                                                <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
                     </Border>
-                    <Button Click="Undo_Click" Style="{StaticResource GhostIconButton}" Margin="14,0,0,0" ToolTip="Undo (Ctrl+Z)"
-                            IsEnabled="{Binding CanUndo}">
-                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe166;" />
-                    </Button>
-                    <Button Click="Redo_Click" Style="{StaticResource GhostIconButton}" ToolTip="Redo (Ctrl+Y)"
-                            IsEnabled="{Binding CanRedo}">
-                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15a;" />
-                    </Button>
+
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}">
+                        <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding PageCountLabel}" FontSize="10.5" Foreground="{StaticResource TextSubtle}" />
+                        </Border>
+                        <Button Click="Undo_Click" Style="{StaticResource GhostIconButton}" Margin="10,0,0,0" ToolTip="Undo (Ctrl+Z)"
+                                IsEnabled="{Binding CanUndo}">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe166;" />
+                        </Button>
+                        <Button Click="Redo_Click" Style="{StaticResource GhostIconButton}" ToolTip="Redo (Ctrl+Y)"
+                                IsEnabled="{Binding CanRedo}">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15a;" />
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}">
                     <Border BorderBrush="{StaticResource Border}" BorderThickness="1" CornerRadius="8" Padding="2">
                         <StackPanel Orientation="Horizontal">
                             <Button Click="Dark_Click" Content="Dark" FontSize="11.5" FontWeight="SemiBold">
@@ -94,9 +131,10 @@
                             <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
                         </Button>
                     </StackPanel>
+                    </StackPanel>
 
                     <Button Click="Export_Click" Style="{StaticResource PrimaryButton}" Height="32" Padding="12,0"
-                            t:Ui.CornerRadius="9" Margin="14,0,0,0" IsEnabled="{Binding HasExtracts}">
+                            t:Ui.CornerRadius="9" Margin="14,0,0,0" IsEnabled="{Binding CanExport}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
                             <TextBlock Text="Export PDF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
@@ -107,9 +145,13 @@
         </Border>
 
         <Grid>
-            <ex:PageBoard x:Name="Board" />
+            <v:DocumentEditorView DataContext="{Binding Document}"
+                                  Visibility="{Binding DataContext.IsDocument, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVis}}" />
+
+            <ex:PageBoard x:Name="Board" Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}" />
 
             <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16,0,16,12"
+                    Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisInv}}"
                     Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
                     CornerRadius="8" Padding="10,5">
                 <TextBlock FontSize="11" Foreground="#a9adb2" TextWrapping="Wrap">
