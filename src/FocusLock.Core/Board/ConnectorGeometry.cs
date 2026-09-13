@@ -55,12 +55,60 @@ public static class ConnectorGeometry
     /// <paramref name="from"/> or <paramref name="to"/> may be null, meaning that end is a free
     /// point on the canvas rather than an object.
     /// </summary>
-    public static ConnectorPath Compute(Connector c, BoardObject? from, BoardObject? to)
+    /// <summary>Where the drawn line actually starts and stops — an object end sits on its outline.</summary>
+    public static (Pt A, Pt B) Ends(Connector c, BoardObject? from, BoardObject? to)
     {
         var (fromAnchor, toAnchor) = Endpoints(c, from, to);
         // An object end leaves its outline aimed at the other end; a free end is the point itself.
         var a = from is not null ? Attach(from, toAnchor.X, toAnchor.Y, 2) : fromAnchor;
         var b = to is not null ? Attach(to, fromAnchor.X, fromAnchor.Y, 10) : toAnchor;
+        return (a, b);
+    }
+
+    /// <summary>
+    /// The route as a polyline, following the same curve/elbow/straight shape that is drawn.
+    /// Used for hit testing, so clicking the visible line selects it.
+    /// </summary>
+    public static List<Pt> Polyline(Connector c, BoardObject? from, BoardObject? to)
+    {
+        var (a, b) = Ends(c, from, to);
+        var style = string.IsNullOrEmpty(c.Style) ? "curve" : c.Style;
+
+        if (style == "straight") return [a, b];
+
+        if (style == "elbow")
+        {
+            if (Math.Abs(b.X - a.X) > Math.Abs(b.Y - a.Y))
+            {
+                var mx = (a.X + b.X) / 2;
+                return [a, new Pt(mx, a.Y), new Pt(mx, b.Y), b];
+            }
+            var my = (a.Y + b.Y) / 2;
+            return [a, new Pt(a.X, my), new Pt(b.X, my), b];
+        }
+
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+        var horiz = Math.Abs(dx) > Math.Abs(dy);
+        const double k = 0.45;
+        var c1 = horiz ? new Pt(a.X + dx * k, a.Y) : new Pt(a.X, a.Y + dy * k);
+        var c2 = horiz ? new Pt(b.X - dx * k, b.Y) : new Pt(b.X, b.Y - dy * k);
+
+        var pts = new List<Pt>(17);
+        for (var i = 0; i <= 16; i++)
+        {
+            var t = i / 16.0;
+            var u = 1 - t;
+            pts.Add(new Pt(
+                u * u * u * a.X + 3 * u * u * t * c1.X + 3 * u * t * t * c2.X + t * t * t * b.X,
+                u * u * u * a.Y + 3 * u * u * t * c1.Y + 3 * u * t * t * c2.Y + t * t * t * b.Y));
+        }
+        return pts;
+    }
+
+    public static ConnectorPath Compute(Connector c, BoardObject? from, BoardObject? to)
+    {
+        var (a, b) = Ends(c, from, to);
 
         string data;
         double angEnd, angStart;

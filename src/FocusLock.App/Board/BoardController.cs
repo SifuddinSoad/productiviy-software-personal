@@ -349,6 +349,13 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
             return;
         }
 
+        // ... as do the end handles of a selected connector
+        if (CurrentTool == Tool.Select && ConnectorEndAt(screen) is { } connectorEnd)
+        {
+            StartConnectorEndDrag(connectorEnd);
+            return;
+        }
+
         switch (CurrentTool)
         {
             case Tool.Pen: StartPen(world); return;
@@ -800,13 +807,59 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
     string? ConnectorHitTest(Pt world)
     {
         var byId = Doc.Objs.ToDictionary(o => o.Id);
+        var tolerance = 10 / Doc.Cam.Z;   // a steady ~10 px of slack at any zoom
         foreach (var c in Doc.Conns)
         {
             if (!TryResolve(c, byId, out var from, out var to)) continue;
-            var (pa, pb) = ConnectorGeometry.Endpoints(c, from, to);
-            if (DistanceToSegment(world, pa, pb) < 10) return c.Id;
+            var route = ConnectorGeometry.Polyline(c, from, to);
+            for (var i = 0; i < route.Count - 1; i++)
+                if (DistanceToSegment(world, route[i], route[i + 1]) < tolerance)
+                    return c.Id;
         }
         return null;
+    }
+
+    /// <summary>The two grab points of the selected connector, in world coordinates.</summary>
+    public (Pt A, Pt B)? SelectedConnectorEnds()
+    {
+        if (SelectedConnector is not { } id) return null;
+        if (Doc.Conns.FirstOrDefault(x => x.Id == id) is not { } c) return null;
+        var byId = Doc.Objs.ToDictionary(o => o.Id);
+        if (!TryResolve(c, byId, out var from, out var to)) return null;
+        return ConnectorGeometry.Ends(c, from, to);
+    }
+
+    /// <summary>0 = the start handle, 1 = the end handle, null = not on a handle.</summary>
+    public int? ConnectorEndAt(Pt screen)
+    {
+        if (ReadOnly || SelectedConnectorEnds() is not { } ends) return null;
+        Pt ToScreen(Pt w) => new(w.X * Doc.Cam.Z + Doc.Cam.X, w.Y * Doc.Cam.Z + Doc.Cam.Y);
+        if ((ToScreen(ends.A) - screen).Length <= 8) return 0;
+        if ((ToScreen(ends.B) - screen).Length <= 8) return 1;
+        return null;
+    }
+
+    /// <summary>Drags one end of the selected connector: drop it on an object to attach, or anywhere to leave it free.</summary>
+    void StartConnectorEndDrag(int end)
+    {
+        if (Doc.Conns.FirstOrDefault(x => x.Id == SelectedConnector) is not { } c) return;
+        Editor.Snapshot();
+
+        Drag((w, _) =>
+        {
+            if (end == 0) { c.From = ""; c.FromPt = [w.X, w.Y]; }
+            else { c.To = ""; c.ToPt = [w.X, w.Y]; }
+            Notify();
+        }, (w, _) =>
+        {
+            var otherId = end == 0 ? c.To : c.From;
+            if (Bounds.ObjectAt(Doc.Objs, w) is { } target && target.Id != otherId)
+            {
+                if (end == 0) { c.From = target.Id; c.FromPt = null; }
+                else { c.To = target.Id; c.ToPt = null; }
+            }
+            Notify();
+        });
     }
 
     /// <summary>False when an end points at an object that is no longer on the board.</summary>

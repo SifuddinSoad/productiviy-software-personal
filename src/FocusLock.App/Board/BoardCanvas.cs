@@ -341,6 +341,14 @@ public sealed class BoardCanvas : Canvas
                 DrawSizeBadge(dc, b.X + b.W / 2, b.Bottom + 8 / z, $"{Math.Round(single.W)} × {Math.Round(Bounds.Size(single).H)}", z);
         }
 
+        // grab handles on the selected connector's two ends
+        if (c.SelectedConnectorEnds() is { } ends && !c.ReadOnly)
+        {
+            var size = 9 / z;
+            foreach (var p in new[] { ends.A, ends.B })
+                dc.DrawEllipse(B.Canvas, B.Frozen(new Pen(B.Light, 1.8 / z)), new Point(p.X, p.Y), size / 2, size / 2);
+        }
+
         if (c.CurrentTool == Tool.Eraser && !c.ReadOnly)
         {
             var r = c.EraserSize / 2;
@@ -552,6 +560,11 @@ public sealed class BoardCanvas : Canvas
                 "ne" or "sw" => Cursors.SizeNESW,
                 _ => Cursors.SizeNWSE,
             };
+            return;
+        }
+        if (c.CurrentTool == Tool.Select && c.ConnectorEndAt(screen) is not null)
+        {
+            Cursor = Cursors.SizeAll;
             return;
         }
         Cursor = c.CurrentTool switch
