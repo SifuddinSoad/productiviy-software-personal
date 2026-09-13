@@ -3,67 +3,607 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:FocusLock.App.ViewModels"
              xmlns:t="clr-namespace:FocusLock.App.Theme"
+             xmlns:b="clr-namespace:FocusLock.App.Board"
              d:DataContext="{d:DesignInstance vm:WhiteboardViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             Background="{StaticResource Bg}">
+             Background="{StaticResource Bg}" Focusable="True">
+
+    <UserControl.Resources>
+        <Style x:Key="PanelIconButton" TargetType="Button" BasedOn="{StaticResource Flat}">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+            <Setter Property="t:Ui.CornerRadius" Value="8" />
+            <Setter Property="t:Ui.HoverBackground" Value="{StaticResource Hover}" />
+            <Setter Property="t:Ui.HoverForeground" Value="{StaticResource Text}" />
+        </Style>
+        <Style x:Key="FieldButton" TargetType="Button" BasedOn="{StaticResource Flat}">
+            <Setter Property="Height" Value="33" />
+            <Setter Property="Background" Value="{StaticResource SurfaceField}" />
+            <Setter Property="Foreground" Value="{StaticResource Text}" />
+            <Setter Property="t:Ui.CornerRadius" Value="9" />
+            <Setter Property="t:Ui.HoverBackground" Value="{StaticResource SurfaceFieldHover}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+    </UserControl.Resources>
 
     <DockPanel>
-        <!-- Top bar -->
+        <!-- ============ top bar ============ -->
         <Border DockPanel.Dock="Top" Height="52" Background="{StaticResource Surface}"
                 BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
             <Grid Margin="14,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="BackButton" Click="Back_Click" Style="{StaticResource OutlineIconButton}"
-                            Visibility="{Binding ReadOnly, Converter={StaticResource BoolToVis}}" Margin="0,0,10,0">
+                    <Button Click="Back_Click" Style="{StaticResource OutlineIconButton}" Margin="0,0,10,0"
+                            Visibility="{Binding ReadOnly, Converter={StaticResource BoolToVis}}">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xe5c4;" />
                     </Button>
-                    <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Light}">
-                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource OnLight}" Text="&#xe53b;" />
-                    </Border>
-                    <TextBlock Text="{Binding PlanName}" FontSize="13.5" FontWeight="SemiBold"
-                               VerticalAlignment="Center" Margin="10,0,0,0" MaxWidth="280" TextTrimming="CharacterEllipsis" />
+                    <Button Click="TogglePlans_Click" Style="{StaticResource Flat}" t:Ui.CornerRadius="9"
+                            t:Ui.HoverBackground="{StaticResource Hover}" Padding="4,4,8,4">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Light}">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource OnLight}" Text="&#xe53b;" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Margin="10,0,0,0">
+                                <TextBlock Text="{Binding PlanName}" FontSize="13.5" FontWeight="SemiBold"
+                                           MaxWidth="260" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding PlanMeta}" FontSize="10.5" Foreground="{StaticResource TextMuted}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Icon}" FontSize="18" Foreground="{StaticResource TextMuted}"
+                                       Text="&#xe5cf;" Margin="6,0,0,0" />
+                        </StackPanel>
+                    </Button>
+
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0"
+                                Visibility="{Binding ReadOnly, Converter={StaticResource BoolToVisInv}}">
+                        <Button Click="Undo_Click" Style="{StaticResource PanelIconButton}" ToolTip="Undo (Ctrl+Z)"
+                                IsEnabled="{Binding CanUndo}">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="19" Text="&#xe166;" />
+                        </Button>
+                        <Button Click="Redo_Click" Style="{StaticResource PanelIconButton}" ToolTip="Redo (Ctrl+Shift+Z)"
+                                IsEnabled="{Binding CanRedo}">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="19" Text="&#xe15a;" />
+                        </Button>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- Timer pill -->
+                <!-- timer pill -->
                 <Border HorizontalAlignment="Center" VerticalAlignment="Center" Height="32" CornerRadius="9"
                         Background="#1f2226" BorderBrush="#2f3338" BorderThickness="1" Padding="10,0,4,0">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe899;"
-                                   Foreground="{StaticResource Text}" />
+                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe899;" Foreground="{StaticResource Text}" />
                         <TextBlock Style="{StaticResource Mono}" Text="{Binding TimerLabel}" FontSize="12.5" FontWeight="SemiBold"
                                    Foreground="{StaticResource Text}" VerticalAlignment="Center" Margin="8,0" />
                         <TextBlock Text="session" FontSize="10.5" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center"
                                    Margin="0,0,6,0" Visibility="{Binding TimerRunning, Converter={StaticResource BoolToVis}}" />
-                        <Button x:Name="EndButton" Click="End_Click" Style="{StaticResource PrimaryButton}"
-                                Height="24" t:Ui.CornerRadius="7" Margin="0,0,2,0"
+                        <Button Click="End_Click" Style="{StaticResource PrimaryButton}" Height="24" t:Ui.CornerRadius="7" Margin="0,0,2,0"
                                 Visibility="{Binding IsFinished, Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="End session" FontSize="11.5" FontWeight="SemiBold" Margin="10,0" VerticalAlignment="Center" />
                         </Button>
                     </StackPanel>
                 </Border>
 
-                <Button x:Name="ContinueButton" Click="Continue_Click" Style="{StaticResource PrimaryButton}"
-                        Height="32" t:Ui.CornerRadius="9" HorizontalAlignment="Right"
-                        Visibility="{Binding CanContinue, Converter={StaticResource BoolToVis}}">
-                    <StackPanel Orientation="Horizontal" Margin="12,0">
-                        <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe037;" />
-                        <TextBlock Text="Continue remaining plans" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
-                    </StackPanel>
-                </Button>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Click="Continue_Click" Style="{StaticResource PrimaryButton}" Height="32" t:Ui.CornerRadius="9"
+                            Margin="0,0,8,0" Visibility="{Binding CanContinue, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal" Margin="12,0">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="&#xe037;" />
+                            <TextBlock Text="Continue remaining plans" FontSize="12.5" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" Margin="7,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                    <TextBlock Text="{Binding ObjectCountLabel}" FontSize="11" Foreground="{StaticResource TextMuted}"
+                               VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <Button Click="TogglePrompt_Click" Style="{StaticResource Flat}" Height="32" t:Ui.CornerRadius="9"
+                            Foreground="{StaticResource TextSecondary}" t:Ui.HoverBackground="{StaticResource Hover}">
+                        <StackPanel Orientation="Horizontal" Margin="11,0">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe745;" />
+                            <TextBlock Text="Prompt" FontSize="12.5" VerticalAlignment="Center" Margin="6,0" />
+                            <Border Background="#33383e" CornerRadius="5" Padding="5,1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding PromptCountLabel}" FontSize="10.5" Foreground="{StaticResource Text}" />
+                            </Border>
+                        </StackPanel>
+                    </Button>
+                    <Button Click="TogglePlans_Click" Style="{StaticResource PrimaryButton}" Height="32" t:Ui.CornerRadius="9" Margin="6,0,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="12,0">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe9b0;" />
+                            <TextBlock Text="Plans" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
-        <!-- Canvas placeholder (full board arrives in Phase 1b) -->
-        <Grid Background="{StaticResource CanvasBg}">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock Style="{StaticResource Icon}" FontSize="40" Foreground="{StaticResource HoverStrong}" Text="&#xe3c2;"
-                           HorizontalAlignment="Center" />
-                <TextBlock Text="Canvas" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}"
-                           HorizontalAlignment="Center" Margin="0,10,0,0" />
-                <TextBlock Text="{Binding PlanName}" FontSize="12" Foreground="{StaticResource TextDim}"
-                           HorizontalAlignment="Center" Margin="0,4,0,0" />
+        <!-- ============ right panel ============ -->
+        <Border DockPanel.Dock="Right" Width="296" Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource Border}" BorderThickness="1,0,0,0"
+                Visibility="{Binding ShowPanel, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <!-- Plans -->
+                <DockPanel Visibility="{Binding IsPlansPanel, Converter={StaticResource BoolToVis}}">
+                    <Border DockPanel.Dock="Top" Height="46" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <Grid Margin="14,0,12,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Plans" FontSize="13" FontWeight="SemiBold" />
+                                <Border Background="{StaticResource Hover}" CornerRadius="5" Padding="6,2" Margin="8,0,0,0">
+                                    <TextBlock Text="{Binding Plans.Count}" FontSize="10.5" Foreground="{StaticResource TextSubtle}" />
+                                </Border>
+                            </StackPanel>
+                            <Button Click="ClosePanel_Click" Style="{StaticResource GhostIconButton}" HorizontalAlignment="Right">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5cd;" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <Border DockPanel.Dock="Bottom" BorderBrush="{StaticResource Border}" BorderThickness="0,1,0,0" Padding="12,10"
+                            Visibility="{Binding ReadOnly, Converter={StaticResource BoolToVisInv}}">
+                        <Button Click="NewPlan_Click" Style="{StaticResource PrimaryButton}" Height="33" t:Ui.CornerRadius="9">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
+                                <TextBlock Text="New plan" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="6,0,0,0" />
+                            </StackPanel>
+                        </Button>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+                        <ItemsControl ItemsSource="{Binding Plans}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:PlanCard}">
+                                    <Border Background="#1a1c1f" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                            CornerRadius="10" Padding="11" Margin="0,0,0,7">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                        <Setter Property="Background" Value="#22262a" />
+                                                        <Setter Property="BorderBrush" Value="{StaticResource BorderFocus}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <Grid>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Click="ToggleDone_Click" Style="{StaticResource Flat}" Width="20" Height="20"
+                                                            t:Ui.CornerRadius="5" ToolTip="Mark done"
+                                                            Foreground="{Binding Dot, Converter={StaticResource HexBrush}}">
+                                                        <TextBlock FontSize="16">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock" BasedOn="{StaticResource Icon}">
+                                                                    <Setter Property="Text" Value="&#xe835;" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Done}" Value="True">
+                                                                            <Setter Property="Text" Value="&#xe9de;" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Button>
+                                                    <TextBox Text="{Binding Name, Mode=OneWay}" LostFocus="PlanName_LostFocus"
+                                                             KeyDown="PlanName_KeyDown" Width="150" Margin="8,0,0,0"
+                                                             FontSize="12.5" FontWeight="SemiBold" VerticalContentAlignment="Center">
+                                                        <TextBox.Style>
+                                                            <Style TargetType="TextBox" BasedOn="{StaticResource InputBox}">
+                                                                <Setter Property="Height" Value="20" />
+                                                                <Setter Property="Padding" Value="0" />
+                                                                <Setter Property="Background" Value="Transparent" />
+                                                                <Setter Property="BorderThickness" Value="0" />
+                                                                <Setter Property="t:Ui.FocusBorderBrush" Value="Transparent" />
+                                                            </Style>
+                                                        </TextBox.Style>
+                                                    </TextBox>
+                                                </StackPanel>
+                                                <TextBlock Style="{StaticResource Mono}" Text="{Binding Status}" FontSize="9.5"
+                                                           Foreground="{StaticResource TextSubtle}" HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center" />
+                                            </Grid>
+                                            <Button Click="OpenPlan_Click" Style="{StaticResource Flat}" HorizontalContentAlignment="Stretch"
+                                                    Margin="0,7,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Desc}" FontSize="11.5" Foreground="#a4a9ae"
+                                                               TextWrapping="Wrap" HorizontalAlignment="Left" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                                        <TextBlock Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource TextMuted}" Text="&#xe72c;" />
+                                                        <TextBlock Text="{Binding Items}" FontSize="10.5" Foreground="{StaticResource TextMuted}" Margin="4,0,10,0" VerticalAlignment="Center" />
+                                                        <TextBlock Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource TextMuted}" Text="&#xe745;" />
+                                                        <TextBlock Text="{Binding PromptCount}" FontSize="10.5" Foreground="{StaticResource TextMuted}" Margin="4,0,10,0" VerticalAlignment="Center" />
+                                                        <TextBlock Style="{StaticResource Icon}" FontSize="13" Foreground="{StaticResource TextMuted}" Text="&#xefd6;" />
+                                                        <TextBlock Text="{Binding Updated}" FontSize="10.5" Foreground="{StaticResource TextMuted}" Margin="4,0,0,0" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+
+                <!-- Prompt -->
+                <DockPanel Visibility="{Binding IsPromptPanel, Converter={StaticResource BoolToVis}}">
+                    <Border DockPanel.Dock="Top" Height="46" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <Grid Margin="14,0,12,0">
+                            <TextBlock Text="Prompt" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Click="ClosePanel_Click" Style="{StaticResource GhostIconButton}" HorizontalAlignment="Right">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5cd;" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <Border DockPanel.Dock="Top" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1" Padding="12,11"
+                            Visibility="{Binding ReadOnly, Converter={StaticResource BoolToVisInv}}">
+                        <StackPanel>
+                            <Button Click="AddPrompt_Click" Style="{StaticResource PrimaryButton}" Height="34" t:Ui.CornerRadius="9">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
+                                    <TextBlock Text="Add prompt" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <TextBlock Text="Prompts are placed on the canvas, like a pin." FontSize="10.5"
+                                       Foreground="#8a9096" TextWrapping="Wrap" Margin="0,7,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="10">
+                        <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Prompts}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:PromptCard}">
+                                        <Border Background="#1a1c1f" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                                CornerRadius="10" Padding="11" Margin="0,0,0,7">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Style="{StaticResource Icon}" FontSize="14" Foreground="{StaticResource Yellow}" Text="&#xe745;" />
+                                                        <TextBlock Text="{Binding Time}" FontSize="10.5" Foreground="#8a9096"
+                                                                   VerticalAlignment="Center" Margin="7,0,0,0" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                        <Button Click="FocusPrompt_Click" Style="{StaticResource GhostIconButton}" Width="23" Height="23" ToolTip="Show on canvas">
+                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe8f4;" />
+                                                        </Button>
+                                                        <Button Click="DeletePrompt_Click" Style="{StaticResource GhostIconButton}" Width="23" Height="23" ToolTip="Delete"
+                                                                t:Ui.HoverForeground="{StaticResource Danger}">
+                                                            <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="&#xe92e;" />
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBlock Style="{StaticResource Mono}" Text="{Binding Text}" FontSize="11.5"
+                                                           Foreground="#d6d9dc" TextWrapping="Wrap" Margin="0,8,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <Border BorderBrush="#33383e" BorderThickness="1" CornerRadius="10" Padding="16"
+                                    Visibility="{Binding HasPrompts, Converter={StaticResource BoolToVisInv}}">
+                                <TextBlock Text="No prompts on this plan yet." FontSize="11.5" Foreground="#8a9096"
+                                           TextAlignment="Center" TextWrapping="Wrap" />
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+
+                <!-- Props -->
+                <DockPanel Visibility="{Binding IsPropsPanel, Converter={StaticResource BoolToVis}}">
+                    <Border DockPanel.Dock="Top" Height="46" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <Grid Margin="14,0,12,0">
+                            <TextBlock Text="{Binding SelectionTitle}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            <Button Click="Deselect_Click" Style="{StaticResource GhostIconButton}" HorizontalAlignment="Right">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5cd;" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionLabel}" Text="FILL" FontSize="10.5" />
+                            <ItemsControl ItemsSource="{Binding FillSwatches}" Margin="0,9,0,0">
+                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:Swatch}">
+                                        <Button Click="Fill_Click" Width="28" Height="28" Margin="0,0,6,6"
+                                                t:Ui.CornerRadius="6" Background="{Binding Color, Converter={StaticResource HexBrush}}"
+                                                BorderThickness="2">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Active}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource Light}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel Margin="0,18,0,0" Visibility="{Binding IsMultiSelection, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Style="{StaticResource SectionLabel}" Text="ALIGN" FontSize="10.5" />
+                                <UniformGrid Columns="4" Margin="0,9,0,0">
+                                    <Button Click="Align_Click" Tag="left" Style="{StaticResource FieldButton}" Height="31" Margin="0,0,6,0" ToolTip="Align left">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe00d;" />
+                                    </Button>
+                                    <Button Click="Align_Click" Tag="top" Style="{StaticResource FieldButton}" Height="31" Margin="0,0,6,0" ToolTip="Align top">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe00c;" />
+                                    </Button>
+                                    <Button Click="Align_Click" Tag="center" Style="{StaticResource FieldButton}" Height="31" Margin="0,0,6,0" ToolTip="Centre horizontally">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe00f;" />
+                                    </Button>
+                                    <Button Click="Align_Click" Tag="distribute" Style="{StaticResource FieldButton}" Height="31" ToolTip="Distribute vertically">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe240;" />
+                                    </Button>
+                                </UniformGrid>
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SectionLabel}" Text="VOTES" FontSize="10.5" Margin="0,18,0,0" />
+                            <Grid Margin="0,9,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Click="VoteDown_Click" Style="{StaticResource FieldButton}" Width="31" Height="31" Background="{StaticResource Hover}" t:Ui.CornerRadius="8">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe15b;" />
+                                </Button>
+                                <Border Grid.Column="1" Background="#101113" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                        CornerRadius="8" Height="31" Margin="8,0">
+                                    <TextBlock Text="{Binding SelectionVotes}" FontSize="12.5" FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <Button Grid.Column="2" Click="VoteUp_Click" Style="{StaticResource FieldButton}" Width="31" Height="31" Background="{StaticResource Hover}" t:Ui.CornerRadius="8">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
+                                </Button>
+                            </Grid>
+
+                            <StackPanel Margin="0,18,0,0">
+                                <Button Click="EditText_Click" Style="{StaticResource FieldButton}" Margin="0,0,0,6">
+                                    <StackPanel Orientation="Horizontal" Margin="11,0">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe262;" />
+                                        <TextBlock Text="Edit text" FontSize="12.5" VerticalAlignment="Center" Margin="9,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Click="Duplicate_Click" Style="{StaticResource FieldButton}" Margin="0,0,0,6">
+                                    <StackPanel Orientation="Horizontal" Margin="11,0">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe14d;" />
+                                        <TextBlock Text="Duplicate" FontSize="12.5" VerticalAlignment="Center" Margin="9,0,0,0" />
+                                        <TextBlock Text="Ctrl+D" FontSize="10.5" Foreground="{StaticResource TextMuted}"
+                                                   VerticalAlignment="Center" Margin="12,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Click="Delete_Click" Style="{StaticResource FieldButton}" Foreground="{StaticResource Danger}">
+                                    <StackPanel Orientation="Horizontal" Margin="11,0">
+                                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe92e;" />
+                                        <TextBlock Text="Delete" FontSize="12.5" VerticalAlignment="Center" Margin="9,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+
+                <!-- Connector -->
+                <DockPanel Visibility="{Binding IsConnPanel, Converter={StaticResource BoolToVis}}">
+                    <Border DockPanel.Dock="Top" Height="46" BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
+                        <Grid Margin="14,0,12,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource TextSubtle}" Text="&#xe941;" />
+                                <TextBlock Text="Connector" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                            </StackPanel>
+                            <Button Click="Deselect_Click" Style="{StaticResource GhostIconButton}" HorizontalAlignment="Right">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5cd;" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                    <StackPanel Margin="14">
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="ROUTE" FontSize="10.5" />
+                        <ItemsControl ItemsSource="{Binding ConnectorStyles}" Margin="0,9,0,0">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FlyoutItem}">
+                                    <Button Click="ConnStyleSelected_Click" Style="{StaticResource FieldButton}" Height="34" Margin="0,0,6,0"
+                                            ToolTip="{Binding Label}">
+                                        <Path Data="{Binding Icon}" Stroke="{StaticResource TextSecondary}" StrokeThickness="1.5"
+                                              Width="22" Height="18" Stretch="Uniform" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="ENDS" FontSize="10.5" Margin="0,18,0,0" />
+                        <ItemsControl ItemsSource="{Binding ArrowModes}" Margin="0,9,0,0">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FlyoutItem}">
+                                    <Button Click="ConnArrowsSelected_Click" Style="{StaticResource FieldButton}" Height="31" Margin="0,0,6,0"
+                                            ToolTip="{Binding Label}">
+                                        <TextBlock Text="{Binding Text}" FontSize="11.5" FontWeight="SemiBold" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="LINE" FontSize="10.5" Margin="0,18,0,0" />
+                        <Button Click="ToggleConnDash_Click" Style="{StaticResource FieldButton}" Margin="0,9,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="11,0">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5d3;" />
+                                <TextBlock Text="{Binding SelectedConnectorDashLabel}" FontSize="12.5" VerticalAlignment="Center" Margin="9,0,0,0" />
+                            </StackPanel>
+                        </Button>
+                        <Button Click="Delete_Click" Style="{StaticResource FieldButton}" Foreground="{StaticResource Danger}" Margin="0,18,0,0">
+                            <StackPanel Orientation="Horizontal" Margin="11,0">
+                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe92e;" />
+                                <TextBlock Text="Delete connector" FontSize="12.5" VerticalAlignment="Center" Margin="9,0,0,0" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+            </Grid>
+        </Border>
+
+        <!-- ============ canvas ============ -->
+        <Grid>
+            <b:BoardCanvas x:Name="Canvas" />
+
+            <!-- zoom -->
+            <Border HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16,0,0,12"
+                    Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                    CornerRadius="11" Padding="4">
+                <StackPanel Orientation="Horizontal">
+                    <Button Click="ZoomOut_Click" Style="{StaticResource PanelIconButton}" Width="28" Height="28">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="18" Text="&#xe15b;" />
+                    </Button>
+                    <Button Click="ZoomReset_Click" Style="{StaticResource Flat}" MinWidth="48" Foreground="{StaticResource Text}">
+                        <TextBlock Text="{Binding ZoomLabel}" FontSize="11.5" FontWeight="SemiBold" />
+                    </Button>
+                    <Button Click="ZoomIn_Click" Style="{StaticResource PanelIconButton}" Width="28" Height="28">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="18" Text="&#xe145;" />
+                    </Button>
+                    <Border Width="1" Height="18" Background="{StaticResource Border}" Margin="3,0" />
+                    <Button Click="ZoomFit_Click" Style="{StaticResource PanelIconButton}" Width="28" Height="28" ToolTip="Zoom to fit (Shift+1)">
+                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xea10;" />
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- tool dock + flyouts -->
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10"
+                        Visibility="{Binding ReadOnly, Converter={StaticResource BoolToVisInv}}">
+
+                <Border Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="12" Padding="6" Margin="0,0,0,7" HorizontalAlignment="Center"
+                        Visibility="{Binding ShowShapeFlyout, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl ItemsSource="{Binding ShapeKinds}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:FlyoutItem}">
+                                <Button Click="ShapeKind_Click" Width="34" Height="34" Margin="2,0" ToolTip="{Binding Label}">
+                                    <Path Data="{Binding Icon}" Stroke="{StaticResource TextSecondary}" StrokeThickness="1.5"
+                                          Width="18" Height="18" Stretch="Uniform" />
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                            <Setter Property="t:Ui.CornerRadius" Value="8" />
+                                            <Setter Property="t:Ui.HoverBackground" Value="#2a2e33" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Active}" Value="True">
+                                                    <Setter Property="Background" Value="#33383e" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <Border Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="12" Padding="6" Margin="0,0,0,7" HorizontalAlignment="Center"
+                        Visibility="{Binding ShowConnFlyout, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <ItemsControl ItemsSource="{Binding ConnectorStyles}">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FlyoutItem}">
+                                    <Button Click="ConnStyle_Click" Style="{StaticResource Flat}" Width="34" Height="34" Margin="2,0"
+                                            t:Ui.CornerRadius="8" ToolTip="{Binding Label}" t:Ui.HoverBackground="#2a2e33">
+                                        <Path Data="{Binding Icon}" Stroke="{StaticResource TextSecondary}" StrokeThickness="1.5"
+                                              Width="20" Height="18" Stretch="Uniform" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Border Width="1" Height="20" Background="{StaticResource Border}" Margin="4,0" />
+                        <Button Click="ToggleNewConnDash_Click" Style="{StaticResource Flat}" Height="26" t:Ui.CornerRadius="7"
+                                Background="{StaticResource Hover}" Foreground="{StaticResource TextSecondary}">
+                            <TextBlock Text="Dashed" FontSize="11" FontWeight="SemiBold" Margin="9,0" VerticalAlignment="Center" />
+                        </Button>
+                        <ItemsControl ItemsSource="{Binding ArrowModes}" Margin="4,0,0,0">
+                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:FlyoutItem}">
+                                    <Button Click="ConnArrows_Click" Style="{StaticResource Flat}" Height="26" Margin="2,0" t:Ui.CornerRadius="7"
+                                            Background="{StaticResource Hover}" Foreground="{StaticResource TextSecondary}" ToolTip="{Binding Label}">
+                                        <TextBlock Text="{Binding Text}" FontSize="11" FontWeight="SemiBold" Margin="9,0" VerticalAlignment="Center" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="12" Padding="7" Margin="0,0,0,7" HorizontalAlignment="Center"
+                        Visibility="{Binding ShowStickyFlyout, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl ItemsSource="{Binding StickySwatches}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:Swatch}">
+                                <Button Click="StickyColor_Click" Width="24" Height="24" Margin="2,0"
+                                        t:Ui.CornerRadius="4" Background="{Binding Color, Converter={StaticResource HexBrush}}"
+                                        BorderThickness="2">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                            <Setter Property="BorderBrush" Value="Transparent" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Active}" Value="True">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource Light}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <Border Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="12" Padding="12,7" Margin="0,0,0,7" HorizontalAlignment="Center"
+                        Visibility="{Binding ShowEraserFlyout, Converter={StaticResource BoolToVis}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Eraser" FontSize="11" FontWeight="SemiBold" Foreground="#d3d6d9" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding EraserLabel}" FontSize="11" FontWeight="SemiBold" Foreground="#d3d6d9"
+                                   VerticalAlignment="Center" Margin="5,0,10,0" />
+                        <Slider Minimum="8" Maximum="120" Width="120" VerticalAlignment="Center"
+                                Value="{Binding EraserSize, Mode=TwoWay}" />
+                        <TextBlock Text="[ ]" FontSize="10.5" Foreground="#8a9096" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="14" Padding="5" HorizontalAlignment="Center">
+                    <ItemsControl ItemsSource="{Binding Tools}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ToolButton}">
+                                <Button Click="Tool_Click" Width="38" Height="38" ToolTip="{Binding Title}"
+                                        Margin="{Binding GapLeft, Converter={StaticResource GapToMargin}}">
+                                    <TextBlock Style="{StaticResource Icon}" FontSize="20" Text="{Binding Icon}" />
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                            <Setter Property="t:Ui.CornerRadius" Value="10" />
+                                            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                            <Setter Property="t:Ui.HoverBackground" Value="#26292e" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Active}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource Light}" />
+                                                    <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                    <Setter Property="t:Ui.HoverBackground" Value="{StaticResource TextStrong}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <Border Background="{StaticResource Floating}" BorderBrush="{StaticResource Border}" BorderThickness="1"
+                        CornerRadius="7" Padding="9,3" Margin="0,7,0,0" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding Hint}" FontSize="11" Foreground="#d3d6d9" />
+                </Border>
             </StackPanel>
         </Grid>
     </DockPanel>

@@ -22,12 +22,17 @@ internal static class Json
         File.Move(tmp, path, overwrite: true);
     }
 
+    static ReadOnlySpan<byte> Bom => [0xEF, 0xBB, 0xBF];
+
     public static T? Read<T>(string path) where T : class
     {
         if (!File.Exists(path)) return null;
         try
         {
-            return JsonSerializer.Deserialize<T>(File.ReadAllBytes(path), Options);
+            var bytes = File.ReadAllBytes(path).AsSpan();
+            // A file hand-edited in Notepad comes back with a BOM, which the JSON reader rejects.
+            if (bytes.StartsWith(Bom)) bytes = bytes[3..];
+            return JsonSerializer.Deserialize<T>(bytes, Options);
         }
         catch (JsonException)
         {
