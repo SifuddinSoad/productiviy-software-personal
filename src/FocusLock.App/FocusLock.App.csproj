@@ -8,8 +8,10 @@
     <UseWPF>true</UseWPF>
     <!-- Program.Main decides between the app and the guard service; WPF's generated entry point would not. -->
     <StartupObject>FocusLock.App.Program</StartupObject>
-    <AssemblyTitle>Saidrix Studio FocusLock</AssemblyTitle>
-    <Product>FocusLock</Product>
+    <AssemblyTitle>Focus Mood</AssemblyTitle>
+    <Product>Focus Mood</Product>
+    <!-- Drawn from Theme/Logo.xaml by scripts/make-icon.ps1. -->
+    <ApplicationIcon>Assets\FocusMood.ico</ApplicationIcon>
     <Version>0.1.0</Version>
   </PropertyGroup>
 
@@ -25,6 +27,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\Fonts\*.ttf" />
+    <Resource Include="Assets\FocusMood.ico" />
     <None Include="Assets\Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

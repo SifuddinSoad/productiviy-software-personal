@@ -92,9 +92,7 @@
                     <Button Click="TogglePlans_Click" Style="{StaticResource Flat}" t:Ui.CornerRadius="9"
                             t:Ui.HoverBackground="{StaticResource Hover}" Padding="4,4,8,4">
                         <StackPanel Orientation="Horizontal">
-                            <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Light}">
-                                <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource OnLight}" Text="&#xe53b;" />
-                            </Border>
+                            <Image Width="26" Height="26" Source="{StaticResource LogoLight}" />
                             <StackPanel VerticalAlignment="Center" Margin="10,0,0,0">
                                 <TextBlock Text="{Binding PlanName}" FontSize="13.5" FontWeight="SemiBold"
                                            MaxWidth="260" TextTrimming="CharacterEllipsis" />

@@ -15,11 +15,8 @@
                 BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
             <Grid Margin="18,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Light}">
-                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource OnLight}"
-                                   Text="&#xe53b;" />
-                    </Border>
-                    <TextBlock Text="Saidrix Studio" FontSize="13.5" FontWeight="SemiBold"
+                    <Image Width="26" Height="26" Source="{StaticResource LogoLight}" />
+                    <TextBlock Text="Focus Mood" FontSize="13.5" FontWeight="SemiBold"
                                Foreground="{StaticResource Text}" VerticalAlignment="Center" Margin="10,0,0,0" />
                 </StackPanel>
                 <TextBlock Style="{StaticResource Mono}" Text="{Binding TodayLabel}" FontSize="11"

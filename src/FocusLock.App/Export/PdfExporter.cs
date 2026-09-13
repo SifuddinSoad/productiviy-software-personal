@@ -24,7 +24,7 @@ public static class PdfExporter
 
         using var document = new PdfDocument();
         document.Info.Title = session.Name;
-        document.Info.Creator = "Saidrix Studio FocusLock";
+        document.Info.Creator = "Focus Mood";
 
         var written = 0;
         foreach (var item in session.Extracts)

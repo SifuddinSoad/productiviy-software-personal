@@ -14,10 +14,8 @@
             <Border DockPanel.Dock="Top" Height="52" Background="{StaticResource Surface}"
                     BorderBrush="{StaticResource Border}" BorderThickness="0,0,0,1">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0">
-                    <Border Width="26" Height="26" CornerRadius="7" Background="{StaticResource Light}">
-                        <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource OnLight}" Text="&#xe53b;" />
-                    </Border>
-                    <TextBlock Text="Saidrix Studio" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    <Image Width="26" Height="26" Source="{StaticResource LogoLight}" />
+                    <TextBlock Text="Focus Mood" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="10,0,0,0" />
                 </StackPanel>
             </Border>
 
@@ -36,7 +34,7 @@
                     <StackPanel Margin="0,22,0,0">
                         <TextBlock Style="{StaticResource SectionLabel}" Text="SESSION NAME" />
                         <TextBox Style="{StaticResource InputBox}" Margin="0,8,0,0"
-                                 t:Ui.Placeholder="e.g. Saidrix Tutor System Planning"
+                                 t:Ui.Placeholder="e.g. Chapter 4 revision"
                                  Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
                     </StackPanel>
 

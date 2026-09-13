@@ -38,13 +38,15 @@ Write-Output "Installing to $target"
 New-Item -ItemType Directory -Force $target | Out-Null
 Copy-Item (Join-Path $Source '*') $target -Recurse -Force
 
-# Start menu shortcut, so it can be launched like any other app
-$startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\FocusLock.lnk'
+# Start menu shortcut, so it can be launched like any other app. The app used to be called
+# FocusLock; take that shortcut away so the menu does not list it twice.
+$programs = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+Remove-Item (Join-Path $programs 'FocusLock.lnk') -ErrorAction SilentlyContinue
 $shell = New-Object -ComObject WScript.Shell
-$link = $shell.CreateShortcut($startMenu)
+$link = $shell.CreateShortcut((Join-Path $programs 'Focus Mood.lnk'))
 $link.TargetPath = $exe
 $link.WorkingDirectory = $target
-$link.Description = 'Saidrix Studio FocusLock'
+$link.Description = 'Focus Mood'
 $link.Save()
 
 Write-Output ''

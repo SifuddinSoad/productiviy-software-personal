@@ -8,7 +8,7 @@ namespace FocusLock.App.Export;
 public static class ExportTarget
 {
     public static string Folder { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "FocusLock");
+        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Focus Mood");
 
     public static string SuggestedName(Session session) =>
         $"{Sanitise(session.Name)} {DateTime.Now:yyyy-MM-dd HHmm}.pdf";

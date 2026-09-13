@@ -15,7 +15,7 @@ internal sealed class MonitorBlocker : Window
         Topmost = true;
         AllowsTransparency = false;
         Background = new SolidColorBrush(Color.FromRgb(0x0e, 0x0f, 0x10));
-        Title = "FocusLock";
+        Title = "Focus Mood";
         Left = -10000;
         Top = -10000;
         Width = 1;

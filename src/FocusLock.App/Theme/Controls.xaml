@@ -4,6 +4,7 @@
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="Colors.xaml" />
+        <ResourceDictionary Source="Logo.xaml" />
     </ResourceDictionary.MergedDictionaries>
 
     <t:FirstNonNullConverter x:Key="FirstNonNull" />

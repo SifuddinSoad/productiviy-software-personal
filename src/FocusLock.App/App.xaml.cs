@@ -18,7 +18,7 @@ public partial class App : Application
         if (e.Args.Contains("--cleanup", StringComparer.OrdinalIgnoreCase))
         {
             var log = Cleanup.Run();
-            MessageBox.Show(string.Join(Environment.NewLine, log), "FocusLock cleanup",
+            MessageBox.Show(string.Join(Environment.NewLine, log), "Focus Mood cleanup",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
