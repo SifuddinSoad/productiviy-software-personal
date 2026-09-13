@@ -20,8 +20,17 @@ public sealed class Session
     public List<Plan> Plans { get; set; } = [];
     public SessionClockState Clock { get; set; } = new();
 
-    /// <summary>Regions picked out of the canvases, in the order they will appear in the PDF.</summary>
+    /// <summary>Regions picked out of the canvases for the PDF. Where each one goes is on the item.</summary>
     public List<ExtractItem> Extracts { get; set; } = [];
+
+    /// <summary>The PDF's A4 pages, in order.</summary>
+    public List<PdfPage> Pages { get; set; } = [];
+
+    /// <summary>White pages instead of the canvas's dark ground.</summary>
+    public bool PdfLight { get; set; }
+
+    /// <summary>Each section's name printed above it.</summary>
+    public bool PdfTitles { get; set; }
 
     public bool IsEnded => EndedUtc is not null;
 }
@@ -39,6 +48,22 @@ public sealed class ExtractItem
     public double Y { get; set; }
     public double W { get; set; }
     public double H { get; set; }
+
+    /// <summary>The page it sits on; empty until it has been placed.</summary>
+    public string PageId { get; set; } = "";
+
+    /// <summary>Top-left of its box on the page, in points.</summary>
+    public double PageX { get; set; }
+    public double PageY { get; set; }
+
+    /// <summary>Printed width in points. The height follows from the region's shape.</summary>
+    public double PageW { get; set; }
+}
+
+public sealed class PdfPage
+{
+    public string Id { get; set; } = "";
+    public bool Landscape { get; set; }
 }
 
 public sealed class Plan
