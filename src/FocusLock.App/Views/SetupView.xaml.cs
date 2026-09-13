@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using FocusLock.App.ViewModels;
 
 namespace FocusLock.App.Views;
@@ -14,6 +15,17 @@ public partial class SetupView : UserControl
     void AddPlan_Click(object sender, RoutedEventArgs e) => Vm?.AddPlan();
     void Start_Click(object sender, RoutedEventArgs e) => Vm?.Start();
     void CancelCountdown_Click(object sender, RoutedEventArgs e) => Vm?.CancelCountdown();
+
+    void Custom_Click(object sender, RoutedEventArgs e)
+    {
+        Vm?.UseCustomDuration();
+        CustomBox.Focus();
+        CustomBox.SelectAll();
+    }
+
+    /// <summary>Digits only, so the length can never be nonsense.</summary>
+    void CustomBox_PreviewTextInput(object sender, TextCompositionEventArgs e) =>
+        e.Handled = !e.Text.All(char.IsAsciiDigit);
 
     void Duration_Click(object sender, RoutedEventArgs e)
     {

@@ -43,7 +43,8 @@
                     <!-- Length -->
                     <StackPanel Margin="0,22,0,0">
                         <TextBlock Style="{StaticResource SectionLabel}" Text="SESSION LENGTH" />
-                        <ItemsControl ItemsSource="{Binding DurationChips}" Margin="0,10,0,0">
+                        <ItemsControl ItemsSource="{Binding DurationChips}" Margin="0,10,0,0"
+                                      HorizontalAlignment="Left">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
@@ -74,6 +75,50 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- any length you like -->
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Click="Custom_Click" Height="38" t:Ui.CornerRadius="10" BorderThickness="1">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource Flat}">
+                                        <Setter Property="Background" Value="{StaticResource Surface}" />
+                                        <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                        <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+                                        <Setter Property="t:Ui.HoverBorderBrush" Value="{StaticResource BorderHoverStrong}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCustomDuration}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource Light}" />
+                                                <Setter Property="Foreground" Value="{StaticResource OnLight}" />
+                                                <Setter Property="BorderBrush" Value="{StaticResource Light}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                                <TextBlock Text="Custom" FontSize="13" FontWeight="SemiBold" Margin="15,0" VerticalAlignment="Center" />
+                            </Button>
+
+                            <StackPanel Orientation="Horizontal" Margin="10,0,0,0"
+                                        Visibility="{Binding IsCustomDuration, Converter={StaticResource BoolToVis}}">
+                                <TextBox x:Name="CustomBox" Style="{StaticResource InputBox}" Width="96" Height="38"
+                                         FontSize="13.5" Padding="12,0"
+                                         Text="{Binding CustomDuration, UpdateSourceTrigger=PropertyChanged}"
+                                         PreviewTextInput="CustomBox_PreviewTextInput" />
+                                <TextBlock Text="{Binding CustomUnitLabel}" FontSize="13" Foreground="{StaticResource TextSecondary}"
+                                           VerticalAlignment="Center" Margin="10,0,0,0" />
+                                <TextBlock Text="{Binding CustomHint}" FontSize="11.5" VerticalAlignment="Center" Margin="12,0,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource TextDim}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CustomIsValid}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource Orange}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
 
                         <Border Background="{StaticResource SurfaceAlt}" BorderBrush="{StaticResource BorderAlt}"
                                 BorderThickness="1" CornerRadius="12" Padding="16,12" Margin="0,10,0,0">

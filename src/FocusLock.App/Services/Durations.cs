@@ -1,3 +1,5 @@
+using FocusLock.Core.Sessions;
+
 namespace FocusLock.App.Services;
 
 public static class Durations
@@ -14,6 +16,29 @@ public static class Durations
 #endif
 
     public const int DefaultOption = 60;
+
+    /// <summary>What a typed number means here: seconds in DEBUG builds, minutes otherwise.</summary>
+    public static string UnitLabel => InSeconds ? "seconds" : "minutes";
+
+    /// <summary>
+    /// The largest number that may be typed. Past the lock's own ceiling the safety guard would
+    /// force the screen open anyway, so the input stops there.
+    /// </summary>
+    public static int MaxUnits => (int)(LockSafety.MaxSessionSeconds / (InSeconds ? 1 : 60));
+
+    public static bool IsValidCustom(int units) => units >= 1 && units <= MaxUnits;
+
+    /// <summary>"2 h 30 min", "45 min", "90 s" — a plain reading of a length in seconds.</summary>
+    public static string Describe(int seconds)
+    {
+#pragma warning disable CS0162 // one branch is unreachable per build configuration
+        if (InSeconds) return seconds + " s";
+        var hours = seconds / 3600;
+        var minutes = seconds % 3600 / 60;
+        if (hours == 0) return $"{minutes} min";
+        return minutes == 0 ? $"{hours} h" : $"{hours} h {minutes} min";
+#pragma warning restore CS0162
+    }
 
     /// <summary>"30 min", "1 hour", "1.5 hours" — the design's chip labels.</summary>
     public static string ChipLabel(int option)
