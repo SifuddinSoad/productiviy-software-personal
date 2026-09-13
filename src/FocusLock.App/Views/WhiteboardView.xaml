@@ -438,7 +438,7 @@
                         <Grid Margin="14,0,12,0">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Style="{StaticResource Icon}" FontSize="17" Foreground="{StaticResource TextSubtle}" Text="&#xe941;" />
-                                <TextBlock Text="Connector" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                <TextBlock Text="{Binding ConnectorTitle}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="8,0,0,0" />
                             </StackPanel>
                             <Button Click="Deselect_Click" Style="{StaticResource GhostIconButton}" HorizontalAlignment="Right">
                                 <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe5cd;" />
@@ -493,7 +493,7 @@
                         <Button Click="Delete_Click" Style="{StaticResource FieldButton}" Foreground="{StaticResource Danger}" Margin="0,18,0,0">
                             <StackPanel Orientation="Horizontal" Margin="11,0">
                                 <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe92e;" />
-                                <TextBlock Text="Delete connector" FontSize="12.5" VerticalAlignment="Center" Margin="9,0,0,0" />
+                                <TextBlock Text="{Binding DeleteConnectorLabel}" FontSize="12.5" VerticalAlignment="Center" Margin="9,0,0,0" />
                             </StackPanel>
                         </Button>
                     </StackPanel>

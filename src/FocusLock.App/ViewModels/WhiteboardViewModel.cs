@@ -102,15 +102,16 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         foreach (var a in ArrowModes) a.Active = a.Id == Controller.ConnArrows;
         foreach (var s in StickySwatches) s.Active = s.Color == Controller.StickyColor;
 
-        var selected = Controller.Doc.Conns.FirstOrDefault(c => c.Id == Controller.SelectedConnector);
+        // With several lines selected the controls follow the first one.
+        var selected = Controller.SelectedConnectors.FirstOrDefault();
         foreach (var s in SelectedStyles) s.Active = selected is not null && s.Id == (selected.Style is "" ? "curve" : selected.Style);
         foreach (var a in SelectedArrows) a.Active = selected is not null && a.Id == (selected.Arrows is "" ? "end" : selected.Arrows);
 
         var single = Controller.SingleSelection;
         foreach (var s in FillSwatches) s.Active = single?.Fill == s.Color;
 
-        if (Controller.SelectedConnector is not null) Panel = "conn";
-        else if (Controller.SelectedIds.Count > 0) Panel = "props";
+        if (Controller.SelectedIds.Count > 0) Panel = "props";
+        else if (Controller.SelectedConnectorIds.Count > 0) Panel = "conn";
         else if (Panel == "props" || Panel == "conn") Panel = "plans";
 
         RefreshPrompts();
@@ -131,6 +132,8 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         OnPropertyChanged(nameof(SelectedConnectorDashLabel));
         OnPropertyChanged(nameof(SelectedConnectorDash));
         OnPropertyChanged(nameof(NewConnectorDash));
+        OnPropertyChanged(nameof(ConnectorTitle));
+        OnPropertyChanged(nameof(DeleteConnectorLabel));
         OnPropertyChanged(nameof(IsPlansPanel));
         OnPropertyChanged(nameof(IsPromptPanel));
         OnPropertyChanged(nameof(IsPropsPanel));
@@ -152,7 +155,15 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public bool IsPlansPanel => Panel == "plans";
     public bool IsPromptPanel => Panel == "prompt";
     public bool IsPropsPanel => Panel == "props" && Controller.SelectedIds.Count > 0;
-    public bool IsConnPanel => Panel == "conn" && Controller.SelectedConnector is not null;
+    public bool IsConnPanel => Panel == "conn" && Controller.SelectedConnectorIds.Count > 0;
+
+    public string ConnectorTitle => Controller.SelectedConnectorIds.Count is var n && n > 1
+        ? $"{n} connectors"
+        : "Connector";
+
+    public string DeleteConnectorLabel => Controller.SelectedConnectorIds.Count > 1
+        ? "Delete connectors"
+        : "Delete connector";
 
     public void TogglePlans() => Panel = Panel == "plans" ? "none" : "plans";
     public void TogglePrompt() => Panel = Panel == "prompt" ? "none" : "prompt";
@@ -267,8 +278,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
     public int SelectionVotes => Controller.SingleSelection?.Votes
         ?? Controller.SelectedObjects.Sum(o => o.Votes);
 
-    public bool SelectedConnectorDash =>
-        Controller.Doc.Conns.FirstOrDefault(c => c.Id == Controller.SelectedConnector)?.Dash == true;
+    public bool SelectedConnectorDash => Controller.SelectedConnectors.FirstOrDefault()?.Dash == true;
 
     public string SelectedConnectorDashLabel => SelectedConnectorDash ? "Dashed" : "Solid";
 

@@ -77,18 +77,21 @@ public sealed class BoardEditor(BoardDoc doc)
     }
 
     /// <summary>Removes objects and any connector attached to them.</summary>
-    public void Delete(IReadOnlyCollection<string> ids)
-    {
-        if (ids.Count == 0) return;
-        Snapshot();
-        Doc.Objs.RemoveAll(o => ids.Contains(o.Id));
-        Doc.Conns.RemoveAll(c => ids.Contains(c.From) || ids.Contains(c.To));
-    }
+    public void Delete(IReadOnlyCollection<string> ids) => Delete(ids, []);
 
-    public void DeleteConnector(string id)
+    public void DeleteConnector(string id) => Delete([], [id]);
+
+    /// <summary>Removes objects and connectors together, as one undo step.</summary>
+    public void Delete(IReadOnlyCollection<string> objectIds, IReadOnlyCollection<string> connectorIds)
     {
+        if (objectIds.Count == 0 && connectorIds.Count == 0) return;
         Snapshot();
-        Doc.Conns.RemoveAll(c => c.Id == id);
+        if (objectIds.Count > 0)
+        {
+            Doc.Objs.RemoveAll(o => objectIds.Contains(o.Id));
+            Doc.Conns.RemoveAll(c => objectIds.Contains(c.From) || objectIds.Contains(c.To));
+        }
+        if (connectorIds.Count > 0) Doc.Conns.RemoveAll(c => connectorIds.Contains(c.Id));
     }
 
     /// <summary>Copies offset by 26,26 like the design; returns the new ids.</summary>

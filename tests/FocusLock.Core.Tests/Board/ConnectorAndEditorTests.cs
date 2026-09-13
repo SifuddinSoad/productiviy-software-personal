@@ -326,6 +326,47 @@ public class BoardEditorTests
     }
 
     [Fact]
+    public void Objects_and_connectors_delete_together_in_one_undo_step()
+    {
+        var doc = new BoardDoc
+        {
+            Objs = [Sticky("a"), Sticky("b"), Sticky("c")],
+            Conns =
+            [
+                new Connector { Id = "c1", From = "a", To = "b" },
+                new Connector { Id = "c2", From = "b", To = "c" },
+                new Connector { Id = "c3", FromPt = [0, 0], ToPt = [10, 10] },
+            ],
+        };
+        var editor = new BoardEditor(doc);
+
+        editor.Delete(["a"], ["c3"]);
+
+        Assert.Equal(["b", "c"], doc.Objs.Select(o => o.Id));
+        Assert.Equal(["c2"], doc.Conns.Select(c => c.Id));   // c1 went with object "a"
+
+        editor.Undo();
+        Assert.Equal(3, doc.Objs.Count);
+        Assert.Equal(3, doc.Conns.Count);
+    }
+
+    [Fact]
+    public void Deleting_only_connectors_leaves_objects_alone()
+    {
+        var doc = new BoardDoc
+        {
+            Objs = [Sticky("a"), Sticky("b")],
+            Conns = [new Connector { Id = "c1", From = "a", To = "b" }, new Connector { Id = "c2", From = "b", To = "a" }],
+        };
+        var editor = new BoardEditor(doc);
+
+        editor.Delete([], ["c1", "c2"]);
+
+        Assert.Equal(2, doc.Objs.Count);
+        Assert.Empty(doc.Conns);
+    }
+
+    [Fact]
     public void Erase_result_is_applied_as_one_undo_step()
     {
         var doc = new BoardDoc

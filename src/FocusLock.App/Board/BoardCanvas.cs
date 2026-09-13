@@ -138,7 +138,7 @@ public sealed class BoardCanvas : Canvas
         {
             if (!BoardController.TryResolve(conn, byId, out var a, out var b)) continue;
             var path = ConnectorGeometry.Compute(conn, a, b);
-            var selected = c.SelectedConnector == conn.Id;
+            var selected = c.SelectedConnectorIds.Contains(conn.Id);
             var thickness = selected ? 3.2 : 1.7;
             var pen = path.Dash is { } dash
                 ? B.Dashed(B.Connector, thickness, dash[0], dash[1])

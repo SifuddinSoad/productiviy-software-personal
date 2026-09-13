@@ -17,6 +17,51 @@ public readonly record struct Rect(double X, double Y, double W, double H)
     public Pt Center => new(X + W / 2, Y + H / 2);
     public bool Contains(Pt p) => p.X >= X && p.X <= Right && p.Y >= Y && p.Y <= Bottom;
     public bool Intersects(Rect o) => X < o.Right && Right > o.X && Y < o.Bottom && Bottom > o.Y;
+
+    /// <summary>True when any part of the polyline falls inside this rectangle.</summary>
+    public bool IntersectsPolyline(IReadOnlyList<Pt> pts)
+    {
+        if (pts.Count == 1) return Contains(pts[0]);
+        for (var i = 0; i < pts.Count - 1; i++)
+            if (IntersectsSegment(pts[i], pts[i + 1]))
+                return true;
+        return false;
+    }
+
+    /// <summary>Liang-Barsky clip: true when any part of the segment lies in the rectangle, edges included.</summary>
+    public bool IntersectsSegment(Pt a, Pt b)
+    {
+        double t0 = 0, t1 = 1;
+        var dx = b.X - a.X;
+        var dy = b.Y - a.Y;
+
+        Span<(double P, double Q)> edges =
+        [
+            (-dx, a.X - X), (dx, Right - a.X),
+            (-dy, a.Y - Y), (dy, Bottom - a.Y),
+        ];
+
+        foreach (var (p, q) in edges)
+        {
+            if (p == 0)
+            {
+                if (q < 0) return false;   // parallel to this edge and outside it
+                continue;
+            }
+            var r = q / p;
+            if (p < 0)
+            {
+                if (r > t1) return false;
+                if (r > t0) t0 = r;
+            }
+            else
+            {
+                if (r < t0) return false;
+                if (r < t1) t1 = r;
+            }
+        }
+        return true;
+    }
 }
 
 /// <summary>Number formatting that mirrors the design's helpers, so ported paths stay identical.</summary>

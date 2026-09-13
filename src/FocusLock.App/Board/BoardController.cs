@@ -44,7 +44,10 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
     public double EraserSize { get; private set; } = 34;
 
     public List<string> SelectedIds { get; } = [];
-    public string? SelectedConnector { get; private set; }
+    public List<string> SelectedConnectorIds { get; } = [];
+
+    /// <summary>The connector when exactly one is selected — end handles need an unambiguous target.</summary>
+    public string? SelectedConnector => SelectedConnectorIds.Count == 1 ? SelectedConnectorIds[0] : null;
     public string? EditingId { get; set; }
     public int EditingCell { get; set; } = -1;
 
@@ -70,7 +73,7 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         Doc = next;
         Editor = new BoardEditor(next);
         SelectedIds.Clear();
-        SelectedConnector = null;
+        SelectedConnectorIds.Clear();
         EditingId = null;
         EditingCell = -1;
         Draft = null;
@@ -159,7 +162,7 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         if (tool != Tool.Select)
         {
             SelectedIds.Clear();
-            SelectedConnector = null;
+            SelectedConnectorIds.Clear();
         }
         Notify();
     }
@@ -198,29 +201,39 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         return new Rect(x0 - 5, y0 - 5, x1 - x0 + 10, y1 - y0 + 10);
     }
 
-    public void Select(IEnumerable<string> ids)
+    public void Select(IEnumerable<string> ids, IEnumerable<string>? connectorIds = null)
     {
         SelectedIds.Clear();
         SelectedIds.AddRange(ids);
-        SelectedConnector = null;
+        SelectedConnectorIds.Clear();
+        if (connectorIds is not null) SelectedConnectorIds.AddRange(connectorIds);
         Notify();
     }
 
-    public void SelectAll() => Select(Doc.Objs.Select(o => o.Id));
+    public void SelectAll() => Select(Doc.Objs.Select(o => o.Id), Doc.Conns.Select(c => c.Id));
 
     public void Deselect()
     {
         SelectedIds.Clear();
-        SelectedConnector = null;
+        SelectedConnectorIds.Clear();
         EditingId = null;
         EditingCell = -1;
         Notify();
     }
 
-    public void SelectConnector(string id)
+    /// <summary>Shift keeps the rest of the selection and toggles this one.</summary>
+    public void SelectConnector(string id, bool add = false)
     {
-        SelectedIds.Clear();
-        SelectedConnector = id;
+        if (add)
+        {
+            if (!SelectedConnectorIds.Remove(id)) SelectedConnectorIds.Add(id);
+        }
+        else
+        {
+            SelectedIds.Clear();
+            SelectedConnectorIds.Clear();
+            SelectedConnectorIds.Add(id);
+        }
         Notify();
     }
 
@@ -229,16 +242,9 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
     public void DeleteSelection()
     {
         if (ReadOnly) return;
-        if (SelectedConnector is { } c)
-        {
-            Editor.DeleteConnector(c);
-            SelectedConnector = null;
-            Notify();
-            return;
-        }
-        if (SelectedIds.Count == 0) return;
-        Editor.Delete([.. SelectedIds]);
+        Editor.Delete([.. SelectedIds], [.. SelectedConnectorIds]);
         SelectedIds.Clear();
+        SelectedConnectorIds.Clear();
         Notify();
     }
 
@@ -280,27 +286,25 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         Notify();
     }
 
-    public void SetConnectorStyle(string style)
-    {
-        if (ReadOnly || SelectedConnector is null) return;
-        Editor.Snapshot();
-        foreach (var c in Doc.Conns.Where(c => c.Id == SelectedConnector)) c.Style = style;
-        Notify();
-    }
+    public IEnumerable<Connector> SelectedConnectors =>
+        Doc.Conns.Where(c => SelectedConnectorIds.Contains(c.Id));
 
-    public void SetConnectorArrows(string mode)
-    {
-        if (ReadOnly || SelectedConnector is null) return;
-        Editor.Snapshot();
-        foreach (var c in Doc.Conns.Where(c => c.Id == SelectedConnector)) c.Arrows = mode;
-        Notify();
-    }
+    public void SetConnectorStyle(string style) => EditSelectedConnectors(c => c.Style = style);
 
+    public void SetConnectorArrows(string mode) => EditSelectedConnectors(c => c.Arrows = mode);
+
+    /// <summary>Toggles as one: if any selected line is solid they all become dashed.</summary>
     public void ToggleConnectorDash()
     {
-        if (ReadOnly || SelectedConnector is null) return;
+        var dash = SelectedConnectors.Any(c => !c.Dash);
+        EditSelectedConnectors(c => c.Dash = dash);
+    }
+
+    void EditSelectedConnectors(Action<Connector> apply)
+    {
+        if (ReadOnly || SelectedConnectorIds.Count == 0) return;
         Editor.Snapshot();
-        foreach (var c in Doc.Conns.Where(c => c.Id == SelectedConnector)) c.Dash = !c.Dash;
+        foreach (var c in SelectedConnectors.ToList()) apply(c);
         Notify();
     }
 
@@ -393,7 +397,7 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         {
             if (ConnectorHitTest(world) is { } conn)
             {
-                SelectConnector(conn);
+                SelectConnector(conn, shift);
                 return;
             }
             StartMarquee(world, shift);
@@ -584,7 +588,7 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         Editor.Add(o);
         SelectedIds.Clear();
         SelectedIds.Add(o.Id);
-        SelectedConnector = null;
+        SelectedConnectorIds.Clear();
         CurrentTool = Tool.Select;
         Notify();
     }
@@ -668,9 +672,13 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
     void StartMarquee(Pt start, bool shift)
     {
         EditingId = null;
-        SelectedConnector = null;
-        if (!shift) SelectedIds.Clear();
+        if (!shift)
+        {
+            SelectedIds.Clear();
+            SelectedConnectorIds.Clear();
+        }
         var baseIds = shift ? SelectedIds.ToList() : [];
+        var baseConns = shift ? SelectedConnectorIds.ToList() : [];
         Marquee = new Rect(start.X, start.Y, 0, 0);
         Notify();
 
@@ -692,7 +700,16 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
             }
             var hits = Doc.Objs.Where(o => Bounds.Of(o).Intersects(m.Value)).Select(o => o.Id);
             var merged = baseIds.Concat(hits.Where(id => !baseIds.Contains(id))).ToList();
-            Select(merged);
+
+            // lines the box touches come along too, so several can be restyled or deleted at once
+            var byId = Doc.Objs.ToDictionary(o => o.Id);
+            var connHits = Doc.Conns
+                .Where(c => TryResolve(c, byId, out var f, out var t)
+                            && m.Value.IntersectsPolyline(ConnectorGeometry.Polyline(c, f, t)))
+                .Select(c => c.Id);
+            var mergedConns = baseConns.Concat(connHits.Where(id => !baseConns.Contains(id))).ToList();
+
+            Select(merged, mergedConns);
         });
     }
 
@@ -702,7 +719,6 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         {
             if (SelectedIds.Contains(hit.Id)) SelectedIds.Remove(hit.Id);
             else SelectedIds.Add(hit.Id);
-            SelectedConnector = null;
             Notify();
             return;
         }
@@ -711,8 +727,8 @@ public sealed class BoardController(BoardDoc doc, bool readOnly)
         {
             SelectedIds.Clear();
             SelectedIds.Add(hit.Id);
+            SelectedConnectorIds.Clear();
         }
-        SelectedConnector = null;
         Notify();
 
         if (EditingId == hit.Id) return;
