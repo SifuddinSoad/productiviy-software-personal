@@ -11,6 +11,8 @@
     <t:BoolToVisibilityConverter x:Key="BoolToVisInv" Invert="True" />
     <t:HexBrushConverter x:Key="HexBrush" />
     <t:GapToMarginConverter x:Key="GapToMargin" />
+    <t:NotConverter x:Key="Not" />
+    <t:AllTrueToVisibilityConverter x:Key="AllTrueToVis" />
 
     <!-- Material Symbols glyph -->
     <Style x:Key="Icon" TargetType="TextBlock">

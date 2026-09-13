@@ -41,7 +41,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void GoHome()
     {
-        var vm = new HomeViewModel(_store.List());
+        var vm = new HomeViewModel(_store);
         vm.NewSession += () => GoSetup(SetupViewModel.ForNew());
         vm.OpenSession += OpenPrevious;
         Current = vm;

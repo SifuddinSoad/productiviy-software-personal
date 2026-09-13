@@ -134,6 +134,31 @@ public sealed class SessionStoreTests : IDisposable
     }
 
     [Fact]
+    public void Delete_removes_a_session_and_its_backup()
+    {
+        var store = new SessionStore(_dir);
+        store.Save(Sample("s1", DateTime.UtcNow));
+        store.Save(Sample("s1", DateTime.UtcNow));   // makes the .bak
+        store.Save(Sample("s2", DateTime.UtcNow));
+
+        store.Delete("s1");
+
+        Assert.Equal(["s2"], store.List().Select(s => s.Id));
+        Assert.Empty(Directory.GetFiles(_dir, "s1.*"));
+    }
+
+    [Fact]
+    public void Deleting_a_session_that_is_not_there_is_harmless()
+    {
+        var store = new SessionStore(_dir);
+        store.Save(Sample("s1", DateTime.UtcNow));
+
+        store.Delete("nothing");
+
+        Assert.Single(store.List());
+    }
+
+    [Fact]
     public void Active_store_set_get_clear()
     {
         var active = new ActiveSessionStore(Path.Combine(_dir, "active.json"));

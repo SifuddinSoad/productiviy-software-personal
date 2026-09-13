@@ -1,33 +1,79 @@
 using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using FocusLock.Core.Models;
 using FocusLock.Core.Sessions;
 
 namespace FocusLock.App.ViewModels;
 
-public sealed class HomeViewModel : ObservableObjectBase
+public sealed partial class HomeViewModel : ObservableObjectBase
 {
+    readonly SessionStore _store;
+
+    [ObservableProperty] bool _confirmingClearAll;
+
     public string TodayLabel { get; } = DateTime.Now.ToString("ddd, MMM d");
     public ObservableCollection<SessionRow> Sessions { get; }
-    public string SessionCount { get; }
-    public bool HasSessions => Sessions.Count > 0;
 
     public event Action? NewSession;
     public event Action<Session>? OpenSession;
 
-    public HomeViewModel(IReadOnlyList<Session> sessions)
+    public HomeViewModel(SessionStore store)
     {
-        Sessions = [.. sessions.Select(s => new SessionRow(s, () => OpenSession?.Invoke(s)))];
-        SessionCount = $"{sessions.Count} saved";
+        _store = store;
+        Sessions = [.. store.List().Select(Row)];
     }
 
+    SessionRow Row(Session session) =>
+        new(session, () => OpenSession?.Invoke(session), Delete);
+
+    public string SessionCount => $"{Sessions.Count} saved";
+    public bool HasSessions => Sessions.Count > 0;
+
+    public string ClearAllPrompt => Sessions.Count == 1
+        ? "Delete this session?"
+        : $"Delete all {Sessions.Count} sessions?";
+
     public void StartNew() => NewSession?.Invoke();
+
+    public void AskClearAll() => ConfirmingClearAll = true;
+    public void CancelClearAll() => ConfirmingClearAll = false;
+
+    public void ClearAll()
+    {
+        foreach (var row in Sessions) _store.Delete(row.Id);
+        Sessions.Clear();
+        ConfirmingClearAll = false;
+        Changed();
+    }
+
+    void Delete(SessionRow row)
+    {
+        _store.Delete(row.Id);
+        Sessions.Remove(row);
+        Changed();
+    }
+
+    void Changed()
+    {
+        OnPropertyChanged(nameof(SessionCount));
+        OnPropertyChanged(nameof(HasSessions));
+        OnPropertyChanged(nameof(ClearAllPrompt));
+    }
 }
 
-public sealed class SessionRow(Session session, Action open)
+public sealed partial class SessionRow(Session session, Action open, Action<SessionRow> delete) : ObservableObject
 {
+    /// <summary>Deleting loses the canvases with it, so the row asks first.</summary>
+    [ObservableProperty] bool _confirmingDelete;
+
+    public string Id => session.Id;
     public string Name => session.Name;
     public string State => Progress.StateLabel(session);
     public Action Open { get; } = open;
+
+    public void AskDelete() => ConfirmingDelete = true;
+    public void CancelDelete() => ConfirmingDelete = false;
+    public void Delete() => delete(this);
 
     public string Range
     {

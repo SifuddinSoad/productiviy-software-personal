@@ -12,6 +12,15 @@ public sealed class SessionStore(string directory)
 
     public Session? Load(string id) => Json.Read<Session>(PathFor(id));
 
+    /// <summary>Removes a session for good, backup copy included.</summary>
+    public void Delete(string id)
+    {
+        var path = PathFor(id);
+        foreach (var file in new[] { path, path + ".bak", path + ".tmp" })
+            if (File.Exists(file))
+                File.Delete(file);
+    }
+
     /// <summary>
     /// Closes out sessions left unfinished by a crash or by the app being killed, so they stop
     /// showing as active forever. The end time is the last moment the session was known to be alive.
