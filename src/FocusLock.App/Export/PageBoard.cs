@@ -63,6 +63,12 @@ public sealed class PageBoard : FrameworkElement
     bool _snapshotTaken;
     Point? _panFrom;
 
+    /// <summary>
+    /// A moving text box's first part as it was laid out when the drag began. It is drawn at the
+    /// pointer instead of laying the text out again on every step, which made dragging stick.
+    /// </summary>
+    TextFragment? _dragFragment;
+
     /// <summary>Pictures of text fragments at the zoom they were drawn for; a fragment is replaced whenever its text is laid out again.</summary>
     readonly ConditionalWeakTable<TextFragment, Tuple<double, BitmapSource>> _fragmentPictures = [];
 
@@ -394,9 +400,19 @@ public sealed class PageBoard : FrameworkElement
     {
         if (m.EditingId == text.Id) return;   // the editor is showing it
         var z = m.Zoom;
-        var fragments = m.FragmentsOf(text);
         var selected = m.SelectedId == text.Id;
         var ink = m.Light ? SelectionOnLight : B.SelectionPen;
+
+        if (_dragId == text.Id && _resizeCorner is null && _dragFragment is { } moving)
+        {
+            if (slot.Page.Id != text.PageId) return;
+            var at = ToScreen(slot, new CoreRect(text.PageX, text.PageY, moving.W, moving.H), z);
+            if (PictureOf(moving, z) is { } picture) dc.DrawImage(picture, at);
+            dc.DrawRectangle(null, ink, new Rect(at.X - 2, at.Y - 2, at.Width + 4, at.Height + 4));
+            return;
+        }
+
+        var fragments = m.FragmentsOf(text);
 
         for (var i = 0; i < fragments.Count; i++)
         {
@@ -519,6 +535,7 @@ public sealed class PageBoard : FrameworkElement
                 : m.Deck.ItemById(hit.Id) is { } it ? (it.PageX, it.PageY) : (0, 0);
             _dragId = hit.Id;
             _dragText = hit.IsText;
+            _dragFragment = hit.IsText && m.Deck.TextById(hit.Id) is { } dragged ? m.FragmentsOf(dragged).FirstOrDefault() : null;
             _resizeCorner = null;
             _grab = new CorePt(pt.X - x, pt.Y - y);
             StartDrag(p);
@@ -584,7 +601,8 @@ public sealed class PageBoard : FrameworkElement
                 var slot = NearestSlot(l, p);
                 var (pw, ph) = PageLayout.SizeOf(slot.Page);
                 var pt = ToPage(slot, p, z);
-                var box = FirstRect(m, text) with { X = pt.X - _grab.X, Y = pt.Y - _grab.Y };
+                var height = _dragFragment?.H ?? TextFlow.EmptyHeightPt;
+                var box = new CoreRect(pt.X - _grab.X, pt.Y - _grab.Y, text.PageW, height);
                 var r = Snapping.Move(box, pw, ph, OthersOn(m, slot.Page.Id, text.Id), threshold);
                 m.Deck.PlaceText(text.Id, slot.Page.Id, r.Box.X, r.Box.Y, text.PageW);
                 m.ShowGuides(slot.Page.Id, r.Guides);
@@ -623,11 +641,12 @@ public sealed class PageBoard : FrameworkElement
         if (_model is not { } m || _dragId is null) return;
 
         var changed = _snapshotTaken;
-        if (changed && _dragText && m.Deck.TextById(_dragId) is { } text) m.EnsurePagesFor(text);
+        var moved = _dragId;
         _dragId = null;
+        _dragFragment = null;
         _resizeCorner = null;
         m.ShowGuides(null, []);
-        if (changed) m.Commit();
+        if (changed) m.Commit(moved);
         else m.Redraw();
     }
 

@@ -51,6 +51,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         _owner = owner;
         PageLayout.Complete(owner.Session);
         Deck = new PageDeck(owner.Session);
+        Settle(null);   // layouts from before settling may overlap
         _owner.PropertyChanged += OnOwnerChanged;
     }
 
@@ -190,25 +191,39 @@ public sealed partial class PageLayoutViewModel : ObservableObject
     /// <summary>Tells the view to take the editor away.</summary>
     public event Action? EditEnded;
 
-    /// <summary>Adds a box of the given kind on a page, below what is already there, and opens it for typing unless it is a line.</summary>
+    /// <summary>
+    /// Adds a box of the given kind and opens it for typing unless it is a line. It goes straight
+    /// under the selected box, pushing what follows down; with nothing selected, under everything on
+    /// the page.
+    /// </summary>
     public void AddText(string kind, string pageId)
     {
         FinishEditing();
-        if (Deck.PageById(pageId) is not { } page) return;
-        var (pw, _) = PageLayout.SizeOf(page);
-        var (top, bottom) = PageLayout.TextArea(Session, page);
 
-        var below = Deck.ItemsOn(page.Id).Select(e => PageLayout.BoxOf(e, Session.PdfTitles).Bottom)
-            .Concat(Deck.TextsOn(page.Id).Select(t => FragmentsOf(t).FirstOrDefault() is { } f ? f.Y + f.H : t.PageY))
-            .DefaultIfEmpty(top - PageLayout.Gap).Max() + PageLayout.Gap;
-
-        // too little room left: start on the next page, adding one if there is none
-        if (below > bottom - 40)
+        double below;
+        PdfPage? page;
+        if (SelectedId is { } id && Deck.ItemById(id) is { } item)
         {
-            Deck.EnsurePagesAfter(page.Id, 1);
-            page = Session.Pages[Session.Pages.IndexOf(page) + 1];
-            below = PageLayout.TextArea(Session, page).Top;
+            page = Deck.PageById(item.PageId);
+            below = PageLayout.BoxOf(item, Session.PdfTitles).Bottom + PageLayout.Gap;
         }
+        else if (SelectedId is { } tid && Deck.TextById(tid) is { } selected)
+        {
+            page = Deck.PageById(selected.PageId);
+            var first = FragmentsOf(selected).FirstOrDefault();
+            below = (first is null ? selected.PageY + TextFlow.EmptyHeightPt : first.Y + first.H) + PageLayout.Gap;
+        }
+        else
+        {
+            page = Deck.PageById(pageId);
+            if (page is null) return;
+            var top = PageLayout.TextArea(Session, page).Top;
+            below = Deck.ItemsOn(page.Id).Select(e => PageLayout.BoxOf(e, Session.PdfTitles).Bottom)
+                .Concat(Deck.TextsOn(page.Id).Select(t => FragmentsOf(t).FirstOrDefault() is { } f ? f.Y + f.H : t.PageY))
+                .DefaultIfEmpty(top - PageLayout.Gap).Max() + PageLayout.Gap;
+        }
+        if (page is null) return;
+        var (pw, _) = PageLayout.SizeOf(page);
 
         List<DocBlock> blocks = kind switch
         {
@@ -217,9 +232,11 @@ public sealed partial class PageLayoutViewModel : ObservableObject
             NewText.Line => [new DividerBlock()],
             _ => [new ParagraphBlock()],
         };
-        var text = Deck.AddText(page.Id, PageLayout.Margin, below, pw - 2 * PageLayout.Margin, blocks);
+        var text = new TextItem { Id = Core.Ids.New("t"), PageId = page.Id, PageX = PageLayout.Margin, PageY = below, PageW = pw - 2 * PageLayout.Margin, Blocks = blocks };
+        Deck.Snapshot();
+        Session.TextItems.Add(text);   // not clamped: it may start past the bottom, and settling moves it to the next page
         SelectedId = text.Id;
-        Commit();
+        Commit(text.Id);
         if (kind != NewText.Line) BeginEdit(text.Id, kind);
     }
 
@@ -259,29 +276,29 @@ public sealed partial class PageLayoutViewModel : ObservableObject
             else
             {
                 Deck.SetText(id, blocks);
-                var count = FragmentsOf(text).Count;
-                if (count > 1) Deck.EnsurePagesAfter(text.PageId, count - 1);
             }
         }
-        Commit();
+        Commit(id);
     }
 
     /// <summary>Where the text box being edited sits, for placing the editor over it.</summary>
     public TextItem? EditingText => EditingId is { } id ? Deck.TextById(id) : null;
 
-    /// <summary>After a move or resize: pages the text now runs on to are added.</summary>
-    public void EnsurePagesFor(TextItem text)
-    {
-        var count = FragmentsOf(text).Count;
-        if (count > 1) Deck.EnsurePagesAfter(text.PageId, count - 1);
-    }
-
     /// <summary>Redraw only; for every step of a drag.</summary>
     public void Redraw() => Changed?.Invoke();
 
-    /// <summary>A finished edit: saved with the session, and every label brought up to date.</summary>
-    public void Commit()
+    /// <summary>
+    /// Moves things so nothing overlaps (see <see cref="PageSettler"/>), adding pages that text or
+    /// pushed-down things now need. Part of whatever change came before it, so the same undo step.
+    /// </summary>
+    void Settle(string? movedId) =>
+        PageSettler.Settle(Session, t => TextFlow.MeasureOf(FragmentsOf(t)), movedId);
+
+    /// <summary>A finished edit: settled, saved with the session, and every label brought up to date.</summary>
+    /// <param name="movedId">What the user just moved, added or typed in; it keeps its place when it ties with something.</param>
+    public void Commit(string? movedId = null)
     {
+        Settle(movedId);
         _owner.PersistLayout();
         _owner.RaiseCanExport();
         OnPropertyChanged(nameof(Light));

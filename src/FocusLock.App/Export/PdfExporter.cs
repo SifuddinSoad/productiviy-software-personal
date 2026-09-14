@@ -34,6 +34,7 @@ public static class PdfExporter
     {
         EmbeddedFontResolver.Install();
         PageLayout.Complete(session);
+        TextFlow.Settle(session);
         var texts = LayOutTexts(session);
         var plans = session.Plans.ToDictionary(p => p.Id);
         var titles = session.PdfTitles;

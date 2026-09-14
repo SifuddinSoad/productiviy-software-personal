@@ -465,6 +465,7 @@ public sealed partial class WhiteboardViewModel : ObservableObjectBase, IDisposa
         };
         Session.Extracts.Add(item);
         PageLayout.Complete(Session);
+        Document.TextFlow.Settle(Session);   // its spot below the sections may be where a text box is
         RebuildExtracts();
         Panel = "extract";
         Persist();

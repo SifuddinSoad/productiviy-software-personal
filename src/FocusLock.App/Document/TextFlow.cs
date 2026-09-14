@@ -4,6 +4,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using FocusLock.Core.Export;
 using FocusLock.Core.Models;
+using CoreRect = FocusLock.Core.Board.Rect;
 
 namespace FocusLock.App.Document;
 
@@ -31,6 +32,36 @@ public static class TextFlow
     public const double EmptyHeightPt = 18;
 
     public static string PaperOf(Session session) => session.PdfLight ? "#ffffff" : "#121315";
+
+    /// <summary>A laid-out text box as the settler sees it: its own page's height and the parts after it.</summary>
+    public static TextMeasure MeasureOf(List<TextFragment> fragments) => fragments.Count == 0
+        ? new TextMeasure(EmptyHeightPt, [])
+        : new TextMeasure(fragments[0].H,
+            fragments.Skip(1).Select(f => new PagedRect(f.PageIndex, new CoreRect(f.X, f.Y, f.W, f.H))).ToList());
+
+    /// <summary>Settles a session's pages outside the Arrange pages screen, laying text out fresh.</summary>
+    public static void Settle(Session session) =>
+        PageSettler.Settle(session, t => MeasureOf(Layout(session, t)));
+
+    /// <summary>
+    /// What the text actually draws. The page visual itself paints a rectangle the size of the whole
+    /// page, so its own bounds say every box is as tall as the room it was given; only its children
+    /// (lines, table cells, callout backgrounds, dividers) count.
+    /// </summary>
+    static Rect ContentBounds(Visual page)
+    {
+        var bounds = Rect.Empty;
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(page); i++)
+        {
+            if (VisualTreeHelper.GetChild(page, i) is not Visual child) continue;
+            var inner = VisualTreeHelper.GetDescendantBounds(child);
+            if (inner.IsEmpty) continue;
+            var offset = VisualTreeHelper.GetOffset(child);
+            inner.Offset(offset.X, offset.Y);
+            bounds.Union(inner);
+        }
+        return bounds;
+    }
 
     public static List<TextFragment> Layout(Session session, TextItem item)
     {
@@ -70,7 +101,7 @@ public static class TextFlow
             var h = room;
             if (i == paginator.PageCount - 1)
             {
-                var bounds = VisualTreeHelper.GetDescendantBounds(page.Visual);
+                var bounds = ContentBounds(page.Visual);
                 var used = bounds.IsEmpty ? 0 : (bounds.Bottom - shift) / DocLook.DipPerPoint;
                 h = Math.Clamp(used, EmptyHeightPt, room);
             }
