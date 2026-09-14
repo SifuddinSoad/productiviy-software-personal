@@ -46,9 +46,24 @@ public sealed class PageBoard : FrameworkElement
     static readonly Pen GuidePen = B.Frozen(new Pen(GuideBrush, 1));
     static readonly Pen AddPen = B.Dashed(HexBrush.FromHex("#34383d"), 1, 5, 4);
     static readonly Pen ItemPenDark = B.Frozen(new Pen(HexBrush.FromHex("#2a2d31"), 1));
-    static readonly Pen SelectionOnLight = B.Frozen(new Pen(B.OnLight, 1.6));
     static readonly Pen RunOnDark = B.Dashed(HexBrush.FromHex("#5a6067"), 1, 3, 3);
     static readonly Pen RunOnLight = B.Dashed(HexBrush.FromHex("#b4b8bd"), 1, 3, 3);
+
+    // one accent for selection, hover and drop hints, readable on white and dark paper alike
+    static readonly Brush Accent = HexBrush.FromHex("#378add");
+    static readonly Pen AccentPen = B.Frozen(new Pen(Accent, 1.6));
+    static readonly Pen HoverPen = B.Frozen(new Pen(HexBrush.FromHex("#80378add"), 1));
+    static readonly Pen GhostPen = B.Dashed(Accent, 1.4, 5, 4);
+    static readonly Pen DropPen = B.Frozen(new Pen(Accent, 2.5) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round });
+    static readonly Brush GhostFill = HexBrush.FromHex("#1a378add");
+    static readonly Brush ShadowNear = HexBrush.FromHex("#40000000");
+    static readonly Brush ShadowFar = HexBrush.FromHex("#1c000000");
+
+    /// <summary>Selection outlines and handles sit this far outside a box, so they never cover its edge.</summary>
+    const double Outset = 4;
+
+    /// <summary>How long pushed things take to glide to their new place.</summary>
+    static readonly TimeSpan GlideTime = TimeSpan.FromMilliseconds(180);
 
     PageLayoutViewModel? _model;
     double _scrollX, _scrollY;
@@ -69,6 +84,16 @@ public sealed class PageBoard : FrameworkElement
     /// </summary>
     TextFragment? _dragFragment;
 
+    /// <summary>Where the box being dragged would land if dropped now, on which page.</summary>
+    (string PageId, CoreRect Box)? _landing;
+
+    /// <summary>The box under the pointer, outlined lightly.</summary>
+    string? _hoverId;
+
+    /// <summary>Things gliding from where they were to where they are: the old spot and when the glide began.</summary>
+    readonly Dictionary<string, (PageLayoutViewModel.Spot From, DateTime Start)> _glides = [];
+    bool _animating;
+
     /// <summary>Pictures of text fragments at the zoom they were drawn for; a fragment is replaced whenever its text is laid out again.</summary>
     readonly ConditionalWeakTable<TextFragment, Tuple<double, BitmapSource>> _fragmentPictures = [];
 
@@ -87,15 +112,56 @@ public sealed class PageBoard : FrameworkElement
         get => _model;
         set
         {
-            if (_model is not null) _model.Changed -= OnModelChanged;
+            if (_model is not null)
+            {
+                _model.Changed -= OnModelChanged;
+                _model.Moved -= OnMoved;
+            }
             _model = value;
             _scrollX = _scrollY = 0;
-            if (_model is not null) _model.Changed += OnModelChanged;
+            _glides.Clear();
+            if (_model is not null)
+            {
+                _model.Changed += OnModelChanged;
+                _model.Moved += OnMoved;
+            }
             InvalidateVisual();
         }
     }
 
     void OnModelChanged() => InvalidateVisual();
+
+    // ---------------------------------------------------------------- gliding
+
+    void OnMoved(IReadOnlyDictionary<string, PageLayoutViewModel.Spot> from)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var (id, spot) in from) _glides[id] = (spot, now);
+        if (_animating) return;
+        _animating = true;
+        CompositionTarget.Rendering += OnFrame;
+    }
+
+    void OnFrame(object? sender, EventArgs e)
+    {
+        var now = DateTime.UtcNow;
+        foreach (var id in _glides.Where(g => now - g.Value.Start >= GlideTime).Select(g => g.Key).ToList()) _glides.Remove(id);
+        if (_glides.Count == 0)
+        {
+            CompositionTarget.Rendering -= OnFrame;
+            _animating = false;
+        }
+        InvalidateVisual();
+    }
+
+    /// <summary>How far a gliding thing is still drawn from its real place, in points; hit testing always uses the real place.</summary>
+    Vector GlideOffset(string id, int pageIndex, double x, double y)
+    {
+        if (!_glides.TryGetValue(id, out var glide) || glide.From.Page != pageIndex) return default;
+        var t = Math.Clamp((DateTime.UtcNow - glide.Start).TotalMilliseconds / GlideTime.TotalMilliseconds, 0, 1);
+        var left = Math.Pow(1 - t, 3);   // ease out
+        return new Vector((glide.From.X - x) * left, (glide.From.Y - y) * left);
+    }
 
     double Dpi => VisualTreeHelper.GetDpi(this).PixelsPerDip;
 
@@ -193,14 +259,14 @@ public sealed class PageBoard : FrameworkElement
         {
             slot = l.Slots.FirstOrDefault(s => s.Page.Id == item.PageId);
             if (slot is null) return null;
-            box = ToScreen(slot, PageLayout.BoxOf(item, m.Titles), m.Zoom);
+            box = Outside(ToScreen(slot, PageLayout.BoxOf(item, m.Titles), m.Zoom));
             handles = Corners(box);
         }
         else if (m.Deck.TextById(id) is { } text)
         {
             slot = l.Slots.FirstOrDefault(s => s.Page.Id == text.PageId);
             if (slot is null) return null;
-            box = ToScreen(slot, FirstRect(m, text), m.Zoom);
+            box = Outside(ToScreen(slot, FirstRect(m, text), m.Zoom));
             handles = Sides(box);
         }
         else return null;
@@ -210,6 +276,11 @@ public sealed class PageBoard : FrameworkElement
                 return (slot, corner);
         return null;
     }
+
+    static Rect Outside(Rect r) => new(r.X - Outset, r.Y - Outset, r.Width + 2 * Outset, r.Height + 2 * Outset);
+
+    static void DrawHandle(DrawingContext dc, Point c) =>
+        dc.DrawRoundedRectangle(Brushes.White, AccentPen, new Rect(c.X - HandleSize / 2, c.Y - HandleSize / 2, HandleSize, HandleSize), 2, 2);
 
     static IEnumerable<(string Corner, Point At)> Corners(Rect r) =>
     [
@@ -273,6 +344,10 @@ public sealed class PageBoard : FrameworkElement
         {
             DrawHeader(dc, slot, l.Slots.Count);
 
+            // a soft shadow lifts the paper off the ground
+            var s0 = slot.Sheet;
+            dc.DrawRoundedRectangle(ShadowFar, null, new Rect(s0.X - 3, s0.Y + 1, s0.Width + 6, s0.Height + 7), 5, 5);
+            dc.DrawRoundedRectangle(ShadowNear, null, new Rect(s0.X - 1, s0.Y + 1, s0.Width + 2, s0.Height + 3), 3, 3);
             dc.DrawRectangle(m.Light ? LightSheet : DarkSheet, SheetPen, slot.Sheet);
             var inset = PageLayout.Margin * z;
             dc.DrawRectangle(null, m.Light ? LightMarginPen : DarkMarginPen,
@@ -283,6 +358,7 @@ public sealed class PageBoard : FrameworkElement
             DrawPageFurniture(dc, m, slot, l.Slots.Count);
             foreach (var item in m.Deck.ItemsOn(slot.Page.Id)) DrawItem(dc, m, slot, item);
             foreach (var text in m.Session.TextItems) DrawText(dc, m, slot, text);
+            DrawLanding(dc, m, slot);   // over everything, so it is seen through the box being dragged
 
             if (m.GuidePageId == slot.Page.Id && _dragId is not null)
                 foreach (var g in m.Guides)
@@ -355,11 +431,28 @@ public sealed class PageBoard : FrameworkElement
         }
     }
 
+    /// <summary>While dragging: a dashed ghost where the box will land and a line marking the spot.</summary>
+    void DrawLanding(DrawingContext dc, PageLayoutViewModel m, Slot slot)
+    {
+        if (_landing is not { } landing || landing.PageId != slot.Page.Id || _resizeCorner is not null) return;
+        var ghost = ToScreen(slot, landing.Box, m.Zoom);
+        dc.DrawRoundedRectangle(GhostFill, GhostPen, ghost, 3, 3);
+
+        var y = ghost.Top - PageLayout.Gap / 2 * m.Zoom;
+        dc.DrawLine(DropPen, new Point(ghost.Left, y), new Point(ghost.Right, y));
+        dc.DrawEllipse(Accent, null, new Point(ghost.Left, y), 3.5, 3.5);
+        dc.DrawEllipse(Accent, null, new Point(ghost.Right, y), 3.5, 3.5);
+    }
+
     void DrawItem(DrawingContext dc, PageLayoutViewModel m, Slot slot, ExtractItem item)
     {
         var z = m.Zoom;
+        var glide = GlideOffset(item.Id, slot.Index, item.PageX, item.PageY);
+        var dragging = _dragId == item.Id && _resizeCorner is null;
         var box = ToScreen(slot, PageLayout.BoxOf(item, m.Titles), z);
+        box.Offset(glide.X * z, glide.Y * z);
         var picture = box;
+        if (dragging) dc.PushOpacity(0.6);
 
         if (m.Titles)
         {
@@ -387,12 +480,18 @@ public sealed class PageBoard : FrameworkElement
             dc.DrawText(gone, new Point(picture.X + 8, picture.Y + 6));
         }
 
-        if (m.SelectedId != item.Id) return;
-        var ink = m.Light ? SelectionOnLight : B.SelectionPen;
-        dc.DrawRectangle(null, ink, new Rect(box.X - 1, box.Y - 1, box.Width + 2, box.Height + 2));
-        foreach (var (_, c) in Corners(box))
-            dc.DrawRectangle(m.Light ? Brushes.White : B.Canvas, ink,
-                new Rect(c.X - HandleSize / 2, c.Y - HandleSize / 2, HandleSize, HandleSize));
+        if (dragging) dc.Pop();
+
+        if (m.SelectedId == item.Id)
+        {
+            var frame = Outside(box);
+            dc.DrawRoundedRectangle(null, AccentPen, frame, 2, 2);
+            if (!dragging) foreach (var (_, c) in Corners(frame)) DrawHandle(dc, c);
+        }
+        else if (_hoverId == item.Id && _dragId is null)
+        {
+            dc.DrawRoundedRectangle(null, HoverPen, Outside(box), 2, 2);
+        }
     }
 
     /// <summary>The parts of a text box that fall on this page, with a dashed line where it runs on to the next one.</summary>
@@ -401,35 +500,42 @@ public sealed class PageBoard : FrameworkElement
         if (m.EditingId == text.Id) return;   // the editor is showing it
         var z = m.Zoom;
         var selected = m.SelectedId == text.Id;
-        var ink = m.Light ? SelectionOnLight : B.SelectionPen;
 
         if (_dragId == text.Id && _resizeCorner is null && _dragFragment is { } moving)
         {
             if (slot.Page.Id != text.PageId) return;
             var at = ToScreen(slot, new CoreRect(text.PageX, text.PageY, moving.W, moving.H), z);
+            dc.PushOpacity(0.6);
             if (PictureOf(moving, z) is { } picture) dc.DrawImage(picture, at);
-            dc.DrawRectangle(null, ink, new Rect(at.X - 2, at.Y - 2, at.Width + 4, at.Height + 4));
+            dc.Pop();
+            dc.DrawRoundedRectangle(null, AccentPen, Outside(at), 2, 2);
             return;
         }
 
         var fragments = m.FragmentsOf(text);
+        var hovered = !selected && _hoverId == text.Id && _dragId is null;
 
         for (var i = 0; i < fragments.Count; i++)
         {
             var f = fragments[i];
             if (f.PageIndex != slot.Index) continue;
             var rect = ToScreen(slot, RectOf(f), z);
+            if (i == 0)
+            {
+                var glide = GlideOffset(text.Id, slot.Index, text.PageX, text.PageY);
+                rect.Offset(glide.X * z, glide.Y * z);
+            }
 
             if (PictureOf(f, z) is { } picture) dc.DrawImage(picture, rect);
             if (i < fragments.Count - 1)
                 dc.DrawLine(m.Light ? RunOnLight : RunOnDark, new Point(rect.Left, rect.Bottom), new Point(rect.Right, rect.Bottom));
 
+            if (hovered) dc.DrawRoundedRectangle(null, HoverPen, Outside(rect), 2, 2);
             if (!selected) continue;
-            dc.DrawRectangle(null, ink, new Rect(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4));
+            var frame = Outside(rect);
+            dc.DrawRoundedRectangle(null, AccentPen, frame, 2, 2);
             if (i != 0) continue;
-            foreach (var (_, c) in Sides(rect))
-                dc.DrawRectangle(m.Light ? Brushes.White : B.Canvas, ink,
-                    new Rect(c.X - HandleSize / 2, c.Y - HandleSize / 2, HandleSize, HandleSize));
+            foreach (var (_, c) in Sides(frame)) DrawHandle(dc, c);
         }
     }
 
@@ -603,9 +709,12 @@ public sealed class PageBoard : FrameworkElement
                 var pt = ToPage(slot, p, z);
                 var height = _dragFragment?.H ?? TextFlow.EmptyHeightPt;
                 var box = new CoreRect(pt.X - _grab.X, pt.Y - _grab.Y, text.PageW, height);
-                var r = Snapping.Move(box, pw, ph, OthersOn(m, slot.Page.Id, text.Id), threshold);
+                var others = OthersOn(m, slot.Page.Id, text.Id);
+                var r = Snapping.Move(box, pw, ph, others, threshold);
                 m.Deck.PlaceText(text.Id, slot.Page.Id, r.Box.X, r.Box.Y, text.PageW);
                 m.ShowGuides(slot.Page.Id, r.Guides);
+                var placed = new CoreRect(text.PageX, text.PageY, text.PageW, height);
+                _landing = (slot.Page.Id, placed with { Y = PageSettler.LandingTop(others, placed) });
             }
         }
         else if (m.Deck.ItemById(_dragId) is { } item)
@@ -625,9 +734,12 @@ public sealed class PageBoard : FrameworkElement
                 var (pw, ph) = PageLayout.SizeOf(slot.Page);
                 var pt = ToPage(slot, p, z);
                 var box = PageLayout.BoxOf(item, m.Titles) with { X = pt.X - _grab.X, Y = pt.Y - _grab.Y };
-                var r = Snapping.Move(box, pw, ph, OthersOn(m, slot.Page.Id, item.Id), threshold);
+                var others = OthersOn(m, slot.Page.Id, item.Id);
+                var r = Snapping.Move(box, pw, ph, others, threshold);
                 m.Deck.Place(item.Id, slot.Page.Id, r.Box.X, r.Box.Y, item.PageW);
                 m.ShowGuides(slot.Page.Id, r.Guides);
+                var placed = PageLayout.BoxOf(item, m.Titles);
+                _landing = (slot.Page.Id, placed with { Y = PageSettler.LandingTop(others, placed) });
             }
         }
         m.Redraw();
@@ -644,6 +756,7 @@ public sealed class PageBoard : FrameworkElement
         var moved = _dragId;
         _dragId = null;
         _dragFragment = null;
+        _landing = null;
         _resizeCorner = null;
         m.ShowGuides(null, []);
         if (changed) m.Commit(moved);
@@ -685,10 +798,17 @@ public sealed class PageBoard : FrameworkElement
     {
         base.OnKeyDown(e);
         if (_model is not { } m) return;
-        var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
-        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+        if (HandleKey(m, e.Key, Keyboard.Modifiers)) e.Handled = true;
+    }
 
-        switch (e.Key)
+    /// <summary>The board's keys; public so the modifier keys can be given directly, not read from the keyboard.</summary>
+    public bool HandleKey(PageLayoutViewModel m, Key key, ModifierKeys modifiers)
+    {
+        var ctrl = modifiers.HasFlag(ModifierKeys.Control);
+        var shift = modifiers.HasFlag(ModifierKeys.Shift);
+        var step = shift ? 10 : 1;
+
+        switch (key)
         {
             case Key.Delete or Key.Back: m.RemoveSelected(); break;
             case Key.Enter when m.SelectedId is { } id && m.Deck.TextById(id) is not null: m.BeginEdit(id); break;
@@ -696,9 +816,73 @@ public sealed class PageBoard : FrameworkElement
             case Key.Z when ctrl && shift: m.Redo(); break;
             case Key.Z when ctrl: m.Undo(); break;
             case Key.Y when ctrl: m.Redo(); break;
-            default: return;
+            case Key.D when ctrl: m.DuplicateSelected(); BringSelectedIntoView(); break;
+            case Key.D0 or Key.NumPad0 when ctrl: FitWidth(); break;
+            case Key.OemPlus or Key.Add when ctrl: m.ZoomIn(); break;
+            case Key.OemMinus or Key.Subtract when ctrl: m.ZoomOut(); break;
+            case Key.Left when m.SelectedId is not null: m.Nudge(-step, 0); break;
+            case Key.Right when m.SelectedId is not null: m.Nudge(step, 0); break;
+            case Key.Up when m.SelectedId is not null: m.Nudge(0, -step); BringSelectedIntoView(); break;
+            case Key.Down when m.SelectedId is not null: m.Nudge(0, step); BringSelectedIntoView(); break;
+            case Key.PageDown: ScrollToPage(CurrentPageIndex() + 1); break;
+            case Key.PageUp: ScrollToPage(CurrentPageIndex() - 1); break;
+            case Key.Tab: m.SelectNext(!shift); BringSelectedIntoView(); break;
+            default: return false;
         }
-        e.Handled = true;
+        return true;
+    }
+
+    /// <summary>Zooms so the widest page fills the width of the view.</summary>
+    public void FitWidth()
+    {
+        if (_model is not { } m || m.Session.Pages.Count == 0 || ActualWidth <= 0) return;
+        var widest = m.Session.Pages.Max(p => PageLayout.SizeOf(p).W);
+        m.Zoom = Math.Clamp(Math.Round((ActualWidth - 2 * SidePad) / widest, 2), PageLayoutViewModel.MinZoom, PageLayoutViewModel.MaxZoom);
+        _scrollX = 0;
+        InvalidateVisual();
+    }
+
+    /// <summary>The page whose middle is nearest the middle of the view.</summary>
+    public int CurrentPageIndex()
+    {
+        if (_model is not { } m || m.Session.Pages.Count == 0) return 0;
+        var middle = ActualHeight / 2;
+        return Arrange(m).Slots.MinBy(s => Math.Abs((s.Sheet.Top + s.Sheet.Bottom) / 2 - middle))!.Index;
+    }
+
+    /// <summary>Scrolls so a page's top sits just under the top of the view.</summary>
+    public void ScrollToPage(int index)
+    {
+        if (_model is not { } m || m.Session.Pages.Count == 0) return;
+        var slots = Arrange(m).Slots;
+        var slot = slots[Math.Clamp(index, 0, slots.Count - 1)];
+        _scrollY += slot.Sheet.Top - TopPad;
+        InvalidateVisual();
+    }
+
+    /// <summary>Scrolls just enough to show the selected box.</summary>
+    public void BringSelectedIntoView()
+    {
+        if (_model is not { } m || m.SelectedId is not { } id) return;
+        var slots = Arrange(m).Slots;
+        Rect box;
+        if (m.Deck.ItemById(id) is { } item && slots.FirstOrDefault(s => s.Page.Id == item.PageId) is { } a)
+            box = ToScreen(a, PageLayout.BoxOf(item, m.Titles), m.Zoom);
+        else if (m.Deck.TextById(id) is { } text && slots.FirstOrDefault(s => s.Page.Id == text.PageId) is { } b)
+            box = ToScreen(b, FirstRect(m, text), m.Zoom);
+        else return;
+
+        if (box.Top < 20) _scrollY += box.Top - 60;
+        else if (box.Bottom > ActualHeight - 20) _scrollY += Math.Min(box.Top - 60, box.Bottom - ActualHeight + 60);
+        InvalidateVisual();
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        if (_hoverId is null) return;
+        _hoverId = null;
+        InvalidateVisual();
     }
 
     void UpdateCursor(Layout l, Point p, PageLayoutViewModel m)
@@ -718,12 +902,18 @@ public sealed class PageBoard : FrameworkElement
             Cursor = Cursors.Hand;
             return;
         }
-        Cursor = HitAt(l, p, m) switch
+        var hit = HitAt(l, p, m);
+        Cursor = hit switch
         {
             { IsText: true, IsFirstPart: false } => Cursors.Arrow,
             { IsText: true } => Cursors.SizeAll,
             not null => Cursors.SizeAll,
             _ => Cursors.Arrow,
         };
+        if (hit?.Id != _hoverId)
+        {
+            _hoverId = hit?.Id;
+            InvalidateVisual();
+        }
     }
 }

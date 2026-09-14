@@ -292,13 +292,126 @@ public sealed partial class PageLayoutViewModel : ObservableObject
     /// pushed-down things now need. Part of whatever change came before it, so the same undo step.
     /// </summary>
     void Settle(string? movedId) =>
-        PageSettler.Settle(Session, t => TextFlow.MeasureOf(FragmentsOf(t)), movedId);
+        PageSettler.Settle(Session, Measure, movedId);
+
+    TextMeasure Measure(TextItem t) => TextFlow.MeasureOf(FragmentsOf(t));
+
+    // ---------------------------------------------------------------- positions, for animating
+
+    /// <summary>Where a section or text box sits: its page's index and its top-left, in points.</summary>
+    public readonly record struct Spot(int Page, double X, double Y);
+
+    public Dictionary<string, Spot> Spots()
+    {
+        var index = Session.Pages.Select((p, i) => (p.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        var spots = new Dictionary<string, Spot>();
+        foreach (var e in Session.Extracts)
+            if (index.TryGetValue(e.PageId, out var i)) spots[e.Id] = new Spot(i, e.PageX, e.PageY);
+        foreach (var t in Session.TextItems)
+            if (index.TryGetValue(t.PageId, out var i)) spots[t.Id] = new Spot(i, t.PageX, t.PageY);
+        return spots;
+    }
+
+    /// <summary>
+    /// Things a change moved along their page, with where each was before, so the board can glide
+    /// them there instead of jumping. Things that changed page are left out: they simply appear.
+    /// </summary>
+    public event Action<IReadOnlyDictionary<string, Spot>>? Moved;
+
+    // ---------------------------------------------------------------- tidy, nudge, duplicate, tab
+
+    /// <summary>Closes the gaps on every page (see <see cref="PageSettler.Compact"/>), as one undo step.</summary>
+    public void Tidy()
+    {
+        FinishEditing();
+        var before = Spots();
+        var pages = Session.Pages.Count;
+        Deck.Snapshot();
+        PageSettler.Compact(Session, Measure);
+        Settle(null);
+        if (Session.Pages.Count == pages && Spots().All(s => before.TryGetValue(s.Key, out var b) && b == s.Value))
+        {
+            Deck.DiscardSnapshot();   // nothing to close
+            return;
+        }
+        Commit(null, before);
+    }
+
+    readonly System.Windows.Threading.DispatcherTimer _nudgeEnds = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    bool _nudging;
+
+    /// <summary>Moves the selected box by a few points. Presses close together make one undo step.</summary>
+    public void Nudge(double dx, double dy)
+    {
+        if (SelectedId is not { } id || IsEditing) return;
+        if (!_nudging)
+        {
+            Deck.Snapshot();
+            _nudging = true;
+            _nudgeEnds.Tick -= EndNudge;
+            _nudgeEnds.Tick += EndNudge;
+        }
+        _nudgeEnds.Stop();
+        _nudgeEnds.Start();
+
+        if (Deck.ItemById(id) is { } item) Deck.Place(id, item.PageId, item.PageX + dx, item.PageY + dy, item.PageW);
+        else if (Deck.TextById(id) is { } text) Deck.PlaceText(id, text.PageId, text.PageX + dx, text.PageY + dy, text.PageW);
+        Commit(id);
+    }
+
+    void EndNudge(object? sender, EventArgs e)
+    {
+        _nudgeEnds.Stop();
+        _nudging = false;
+    }
+
+    public void DuplicateSelected()
+    {
+        if (SelectedId is not { } id || IsEditing) return;
+        var height = Deck.TextById(id) is { } text ? TextFlow.MeasureOf(FragmentsOf(text)).FirstHeight : 0;
+        if (Deck.Duplicate(id, height) is not { } copy) return;
+        SelectedId = copy;
+        Commit(copy);
+    }
+
+    /// <summary>Every section and text box, page by page, top to bottom.</summary>
+    public List<string> ReadingOrder()
+    {
+        var order = new List<string>();
+        foreach (var page in Session.Pages)
+        {
+            order.AddRange(Deck.ItemsOn(page.Id).Select(e => (e.Id, Y: PageLayout.BoxOf(e, Titles).Y, X: e.PageX))
+                .Concat(Deck.TextsOn(page.Id).Select(t => (t.Id, Y: t.PageY, X: t.PageX)))
+                .OrderBy(x => x.Y).ThenBy(x => x.X)
+                .Select(x => x.Id));
+        }
+        return order;
+    }
+
+    /// <summary>Selects the next (or previous) box in reading order, wrapping round; returns it.</summary>
+    public string? SelectNext(bool forward)
+    {
+        var order = ReadingOrder();
+        if (order.Count == 0) return null;
+        var at = SelectedId is { } id ? order.IndexOf(id) : -1;
+        var next = at < 0 ? (forward ? 0 : order.Count - 1) : (at + (forward ? 1 : -1) + order.Count) % order.Count;
+        Select(order[next]);
+        return order[next];
+    }
 
     /// <summary>A finished edit: settled, saved with the session, and every label brought up to date.</summary>
     /// <param name="movedId">What the user just moved, added or typed in; it keeps its place when it ties with something.</param>
-    public void Commit(string? movedId = null)
+    /// <param name="from">Where things were before the change, for gliding them; taken now when not given.</param>
+    public void Commit(string? movedId = null, IReadOnlyDictionary<string, Spot>? from = null)
     {
+        from ??= Spots();
         Settle(movedId);
+        var moves = new Dictionary<string, Spot>();
+        foreach (var (key, now) in Spots())
+            if (from.TryGetValue(key, out var was) && was.Page == now.Page && (Math.Abs(was.X - now.X) > 0.5 || Math.Abs(was.Y - now.Y) > 0.5))
+                moves[key] = was;
+        if (moves.Count > 0) Moved?.Invoke(moves);
+
         _owner.PersistLayout();
         _owner.RaiseCanExport();
         OnPropertyChanged(nameof(Light));

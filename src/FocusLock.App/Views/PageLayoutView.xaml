@@ -178,10 +178,21 @@
                         <Button Click="ZoomReset_Click" Style="{StaticResource Flat}" MinWidth="44" ToolTip="Actual size">
                             <TextBlock Text="{Binding ZoomLabel}" FontSize="11.5" FontWeight="SemiBold" />
                         </Button>
-                        <Button Click="ZoomIn_Click" Style="{StaticResource GhostIconButton}" ToolTip="Zoom in">
+                        <Button Click="ZoomIn_Click" Style="{StaticResource GhostIconButton}" ToolTip="Zoom in (Ctrl+=)">
                             <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe145;" />
                         </Button>
+                        <Button Click="Fit_Click" Style="{StaticResource BarTool}" ToolTip="Fit the page width (Ctrl+0)" Margin="4,0,0,0">
+                            <TextBlock Text="Fit" FontSize="11.5" FontWeight="SemiBold" />
+                        </Button>
                     </StackPanel>
+
+                    <Border Style="{StaticResource BarDivider}" Margin="14,0" />
+                    <Button Click="Tidy_Click" Style="{StaticResource AddTool}" ToolTip="Close the gaps: move everything up as far as it goes">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Style="{StaticResource Icon}" FontSize="16" Text="{x:Static t:Icons.AlignTop}" />
+                            <TextBlock Text="Tidy up" FontSize="12" Margin="5,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
                 </WrapPanel>
 
                 <!-- formatting, while a text box is open -->
@@ -340,7 +351,7 @@
                             <Setter Property="Text" Value="{Binding LastExport}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding LastExport}" Value="">
-                                    <Setter Property="Text" Value="Drag to move · edges and corners resize · double-click text to type · Alt turns snapping off · Delete removes" />
+                                    <Setter Property="Text" Value="Drag to move · double-click text to type · arrows nudge · Tab next · Ctrl+D duplicate · Alt: no snapping" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>

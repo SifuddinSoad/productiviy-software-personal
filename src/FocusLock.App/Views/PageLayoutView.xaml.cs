@@ -136,6 +136,8 @@ public partial class PageLayoutView : UserControl
     void ZoomIn_Click(object s, RoutedEventArgs e) { Vm?.ZoomIn(); Refocus(); }
     void ZoomOut_Click(object s, RoutedEventArgs e) { Vm?.ZoomOut(); Refocus(); }
     void ZoomReset_Click(object s, RoutedEventArgs e) { Vm?.ZoomReset(); Refocus(); }
+    void Fit_Click(object s, RoutedEventArgs e) { Board.FitWidth(); Refocus(); }
+    void Tidy_Click(object s, RoutedEventArgs e) { Vm?.Tidy(); Refocus(); }
 
     void HeaderText_LostFocus(object s, RoutedEventArgs e) => Vm?.SetHeaderText(HeaderBox.Text);
 
