@@ -215,6 +215,52 @@ public class PageDeckTests
     }
 
     [Fact]
+    public void Duplicating_a_section_puts_a_copy_straight_below_it()
+    {
+        var (session, deck) = TwoPages();
+
+        var id = deck.Duplicate("a", textHeight: 0);
+
+        var copy = deck.ItemById(id!)!;
+        var original = session.Extracts[0];
+        Assert.NotEqual("a", copy.Id);
+        Assert.Equal(original.PlanId, copy.PlanId);
+        Assert.Equal((original.X, original.Y, original.W, original.H), (copy.X, copy.Y, copy.W, copy.H));
+        Assert.Equal(("p1", original.PageX, original.PageW), (copy.PageId, copy.PageX, copy.PageW));
+        Assert.Equal(PageLayout.BoxOf(original, false).Bottom + PageLayout.Gap, copy.PageY);
+        Assert.EndsWith("copy", copy.Name);
+        Assert.Equal(1, session.Extracts.IndexOf(copy));   // right after the original in the list
+    }
+
+    [Fact]
+    public void Duplicating_a_text_box_copies_its_words_deeply()
+    {
+        var (session, deck) = TwoPages();
+        var text = deck.AddText("p1", 18, 300, 400, [new ParagraphBlock { Runs = [new DocRun { Text = "Hello", Bold = true }] }]);
+
+        var id = deck.Duplicate(text.Id, textHeight: 50);
+
+        var copy = deck.TextById(id!)!;
+        Assert.Equal((text.PageId, text.PageX, text.PageW, 300 + 50 + PageLayout.Gap), (copy.PageId, copy.PageX, copy.PageW, copy.PageY));
+        var run = ((ParagraphBlock)copy.Blocks[0]).Runs[0];
+        Assert.Equal(("Hello", true), (run.Text, run.Bold));
+        Assert.NotSame(text.Blocks, copy.Blocks);
+        Assert.NotSame(text.Blocks[0], copy.Blocks[0]);
+
+        deck.Undo();
+        Assert.Single(session.TextItems);
+    }
+
+    [Fact]
+    public void Duplicating_something_that_is_not_there_does_nothing()
+    {
+        var (_, deck) = TwoPages();
+
+        Assert.Null(deck.Duplicate("missing", 0));
+        Assert.False(deck.CanUndo);
+    }
+
+    [Fact]
     public void Turning_the_header_on_moves_boxes_out_of_its_band()
     {
         var (session, deck) = TwoPages();

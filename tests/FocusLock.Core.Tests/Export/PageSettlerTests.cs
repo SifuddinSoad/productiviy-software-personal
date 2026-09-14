@@ -210,6 +210,120 @@ public class PageSettlerTests
         Assert.Equal((session.Pages[1].Id, 18.0), (text.PageId, text.PageY));
     }
 
+    // ---------------------------------------------------------------- where a drag will land
+
+    [Fact]
+    public void A_drag_over_the_top_half_lands_where_it_is()
+    {
+        var diagram = new Rect(18, 18, 300, 200);
+        var moving = new Rect(18, 40, 300, 60);
+
+        Assert.Equal(40, PageSettler.LandingTop([diagram], moving));
+    }
+
+    [Fact]
+    public void A_drag_over_the_bottom_half_lands_below()
+    {
+        var diagram = new Rect(18, 18, 300, 200);
+        var moving = new Rect(18, 150, 300, 60);
+
+        Assert.Equal(18 + 200 + Gap, PageSettler.LandingTop([diagram], moving));
+    }
+
+    [Fact]
+    public void A_drag_beside_something_or_on_an_empty_page_lands_where_it_is()
+    {
+        Assert.Equal(150, PageSettler.LandingTop([new Rect(18, 18, 250, 300)], new Rect(300, 150, 250, 60)));
+        Assert.Equal(90, PageSettler.LandingTop([], new Rect(18, 90, 300, 60)));
+    }
+
+    [Fact]
+    public void A_drag_lands_below_everything_before_it_in_a_column()
+    {
+        var a = new Rect(18, 18, 300, 100);
+        var b = new Rect(18, 130, 300, 100);
+        var moving = new Rect(18, 150, 300, 40);   // top 150 is past b's centre at 180? no: before b
+
+        Assert.Equal(18 + 100 + Gap, PageSettler.LandingTop([a, b], moving with { Y = 100 }));
+        Assert.Equal(130 + 100 + Gap, PageSettler.LandingTop([a, b], moving with { Y = 200 }));
+    }
+
+    // ---------------------------------------------------------------- tidy up
+
+    [Fact]
+    public void Tidying_closes_gaps_from_the_top_of_the_page_down()
+    {
+        var a = Section("a", "p1", 60, 100);
+        var t = Text("t", "p1", 300);
+        var b = Section("b", "p1", 500, 100);
+        var session = OnePage(a, t, b);
+
+        PageSettler.Compact(session, Measure(session, new() { ["t"] = 40 }));
+
+        Assert.Equal(18, a.PageY);
+        Assert.Equal(18 + 100 + Gap, t.PageY);
+        Assert.Equal(t.PageY + 40 + Gap, b.PageY);
+    }
+
+    [Fact]
+    public void Tidying_keeps_things_side_by_side()
+    {
+        var left = Section("a", "p1", 80, 200, x: 18, w: 260);
+        var right = Section("b", "p1", 120, 100, x: 300, w: 260);
+        var session = OnePage(left, right);
+
+        PageSettler.Compact(session, Measure(session, []));
+
+        Assert.Equal((18, 18), (left.PageY, right.PageY));
+    }
+
+    [Fact]
+    public void Tidying_pulls_things_back_from_the_next_page_and_removes_pages_it_empties()
+    {
+        var session = new Session
+        {
+            Pages = [new PdfPage { Id = "p1" }, new PdfPage { Id = "p2" }],
+            Extracts = [Section("a", "p1", 18, 100), Section("b", "p2", 300, 100)],
+        };
+
+        PageSettler.Compact(session, Measure(session, []));
+
+        Assert.Single(session.Pages);
+        Assert.Equal(("p1", 18 + 100 + Gap), (session.Extracts[1].PageId, session.Extracts[1].PageY));
+    }
+
+    [Fact]
+    public void Tidying_keeps_a_page_that_was_left_blank_on_purpose()
+    {
+        var session = new Session
+        {
+            Pages = [new PdfPage { Id = "p1" }, new PdfPage { Id = "blank" }, new PdfPage { Id = "p3" }],
+            Extracts = [Section("a", "p1", 18, 100), Section("b", "p3", 300, 100)],
+        };
+
+        PageSettler.Compact(session, Measure(session, []));
+
+        Assert.Equal(["p1", "blank", "p3"], session.Pages.Select(p => p.Id));
+        Assert.Equal(("p3", 18.0), (session.Extracts[1].PageId, session.Extracts[1].PageY));
+    }
+
+    [Fact]
+    public void Tidying_moves_on_to_the_next_page_when_the_rest_does_not_fit()
+    {
+        var session = new Session
+        {
+            Pages = [new PdfPage { Id = "p1" }, new PdfPage { Id = "p2" }],
+            Extracts = [Section("a", "p1", 100, 600), Section("b", "p1", 712, 100), Section("c", "p2", 200, 120)],
+        };
+
+        PageSettler.Compact(session, Measure(session, []));
+
+        var (a, b, c) = (session.Extracts[0], session.Extracts[1], session.Extracts[2]);
+        Assert.Equal(("p1", 18.0), (a.PageId, a.PageY));
+        Assert.Equal(("p1", 18 + 600 + Gap), (b.PageId, b.PageY));
+        Assert.Equal(("p2", 18.0), (c.PageId, c.PageY));   // 730 + 12 + 120 would pass the page's edge at 842
+    }
+
     [Fact]
     public void A_moved_item_wins_a_tie_with_what_it_was_dropped_on()
     {

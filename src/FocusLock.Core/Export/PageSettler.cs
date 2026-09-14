@@ -126,6 +126,135 @@ public static class PageSettler
         }
     }
 
+    /// <summary>
+    /// Where a box being dragged would land if dropped now: below whatever on the page comes before
+    /// it (by the same rule as <see cref="Settle"/>) and shares some of its width.
+    /// </summary>
+    /// <param name="others">The other boxes on the page it is over, in points.</param>
+    public static double LandingTop(IReadOnlyList<Rect> others, Rect moving)
+    {
+        var before = others.Where(o => o.Y + o.H / 2 < moving.Y).ToList();
+        return Below(before, moving.X, moving.W, moving.Y, moving.H);
+    }
+
+    /// <summary>
+    /// Closes the gaps: everything is put back as high as it can go, in reading order, each keeping
+    /// its left edge and width, moving on to the next page when it no longer fits. A page that was
+    /// blank before counts as a deliberate break: nothing crosses it, and it stays. Pages emptied by
+    /// tidying are removed.
+    /// </summary>
+    public static void Compact(Session session, Func<TextItem, TextMeasure> measure)
+    {
+        if (session.Pages.Count == 0) return;
+        var titles = session.PdfTitles;
+
+        var things = new Dictionary<string, List<object>>();
+        foreach (var page in session.Pages)
+            things[page.Id] = session.Extracts.Where(e => e.PageId == page.Id).Cast<object>()
+                .Concat(session.TextItems.Where(t => t.PageId == page.Id))
+                .OrderBy(x => Centre(x, titles, measure))
+                .ToList();
+        var blank = session.Pages.Where(p => things[p.Id].Count == 0).Select(p => p.Id).ToHashSet();
+
+        // runs of pages between the deliberate blanks, tidied one run at a time
+        List<List<PdfPage>> runs = [[]];
+        foreach (var page in session.Pages)
+        {
+            if (!blank.Contains(page.Id)) runs[^1].Add(page);
+            else if (runs[^1].Count > 0) runs.Add([]);
+        }
+
+        var used = new HashSet<string>();
+        foreach (var run in runs.Where(r => r.Count > 0))
+            CompactRun(session, run, run.SelectMany(p => things[p.Id]).ToList(), measure, used);
+
+        session.Pages.RemoveAll(p => !blank.Contains(p.Id) && !used.Contains(p.Id));
+    }
+
+    /// <summary>
+    /// Packs one run of pages. Only roughly for text that runs on: the settle that always follows
+    /// adds any pages it needs and moves what its later parts cover.
+    /// </summary>
+    static void CompactRun(Session session, List<PdfPage> pages, List<object> order, Func<TextItem, TextMeasure> measure, HashSet<string> used)
+    {
+        var titles = session.PdfTitles;
+        var placed = pages.ToDictionary(p => p.Id, _ => new List<Rect>());
+        var p = 0;
+
+        int IndexOf(PdfPage page) => session.Pages.IndexOf(page);
+
+        foreach (var thing in order)
+        {
+            while (true)
+            {
+                var page = pages[p];
+                var (_, ph) = PageLayout.SizeOf(page);
+                var (textTop, textBottom) = PageLayout.TextArea(session, page);
+                var sectionBottom = session.PdfPageNumbers ? ph - PageLayout.FooterBand : ph;
+                var list = placed[page.Id];
+                var fits = false;
+
+                switch (thing)
+                {
+                    case ExtractItem e:
+                    {
+                        var h = PageLayout.BoxHeight(e, e.PageW, titles);
+                        var y = Below(list, e.PageX, e.PageW, textTop, h);
+                        if (y + h <= sectionBottom + Tolerance || y <= textTop + Tolerance)
+                        {
+                            e.PageId = page.Id;
+                            e.PageY = y;
+                            list.Add(new Rect(e.PageX, y, e.PageW, h));
+                            fits = true;
+                        }
+                        break;
+                    }
+                    case TextItem t:
+                    {
+                        t.PageId = page.Id;
+                        var y = textTop;
+                        TextMeasure laid;
+                        for (var tries = 0; ; tries++)
+                        {
+                            t.PageY = y;
+                            laid = measure(t);
+                            var next = Below(list, t.PageX, t.PageW, y, laid.FirstHeight);
+                            if (next <= y + Tolerance || tries >= 50) break;
+                            y = next;
+                        }
+                        if (y <= textBottom - PageLayout.MinTextRoom + Tolerance || y <= textTop + Tolerance)
+                        {
+                            list.Add(new Rect(t.PageX, y, t.PageW, laid.FirstHeight));
+                            foreach (var part in laid.Rest)
+                            {
+                                if (pages.FirstOrDefault(x => IndexOf(x) == part.PageIndex) is not { } covered) continue;
+                                placed[covered.Id].Add(part.Rect);
+                                used.Add(covered.Id);
+                            }
+                            fits = true;
+                        }
+                        break;
+                    }
+                }
+
+                if (fits)
+                {
+                    used.Add(page.Id);
+                    break;
+                }
+                if (p == pages.Count - 1)
+                {
+                    // nowhere left in this run: a new page after its last one
+                    var added = new PdfPage { Id = Ids.New("pg"), Landscape = page.Landscape };
+                    session.Pages.Insert(IndexOf(page) + 1, added);
+                    pages.Add(added);
+                    placed[added.Id] = [];
+                }
+                p++;
+            }
+        }
+    }
+
     static string IdOf(object thing) => thing switch
     {
         ExtractItem e => e.Id,

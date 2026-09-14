@@ -259,6 +259,43 @@ public sealed class PageDeck(Session session)
         Session.PdfLight = light;
     }
 
+    /// <summary>
+    /// A copy of a section or text box straight below the original, next to it in the list. The
+    /// caller settles afterwards, so what was below makes room.
+    /// </summary>
+    /// <param name="textHeight">A text box's height on its page; only the app can lay text out.</param>
+    /// <returns>The copy's id, or null when there is nothing with that id.</returns>
+    public string? Duplicate(string id, double textHeight)
+    {
+        if (ItemById(id) is { } item)
+        {
+            Snapshot();
+            var copy = new ExtractItem
+            {
+                Id = Ids.New("x"), PlanId = item.PlanId, Name = item.Name.Length == 0 ? "copy" : $"{item.Name} copy",
+                X = item.X, Y = item.Y, W = item.W, H = item.H,
+                PageId = item.PageId, PageX = item.PageX, PageW = item.PageW,
+                PageY = PageLayout.BoxOf(item, Session.PdfTitles).Bottom + PageLayout.Gap,
+            };
+            Session.Extracts.Insert(Session.Extracts.IndexOf(item) + 1, copy);
+            return copy.Id;
+        }
+
+        if (TextById(id) is { } text)
+        {
+            Snapshot();
+            var copy = new TextItem
+            {
+                Id = Ids.New("t"), PageId = text.PageId, PageX = text.PageX, PageW = text.PageW,
+                PageY = text.PageY + textHeight + PageLayout.Gap,
+                Blocks = JsonSerializer.Deserialize<List<DocBlock>>(JsonSerializer.Serialize(text.Blocks))!,
+            };
+            Session.TextItems.Insert(Session.TextItems.IndexOf(text) + 1, copy);
+            return copy.Id;
+        }
+        return null;
+    }
+
     public void Remove(string itemId)
     {
         if (ItemById(itemId) is null) return;
