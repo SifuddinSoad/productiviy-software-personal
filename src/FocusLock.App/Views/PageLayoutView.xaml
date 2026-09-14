@@ -120,11 +120,22 @@
                             <TextBlock Style="{StaticResource Icon}" FontSize="15" Text="{x:Static t:Icons.Check}" Foreground="{StaticResource Green}" />
                             <TextBlock Text="Saved" FontSize="11.5" Foreground="{StaticResource Green}" VerticalAlignment="Center" Margin="4,0,0,0" />
                         </StackPanel>
-                        <Button Click="Export_Click" Style="{StaticResource PrimaryButton}" Height="34" Padding="14,0"
+                        <Button Click="Export_Click" Style="{StaticResource PrimaryButton}" Height="34" Padding="14,0" MinWidth="124"
                                 t:Ui.CornerRadius="9" IsEnabled="{Binding CanExport}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" FontSize="17" Text="&#xe415;" />
-                                <TextBlock Text="Export PDF" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0" />
+                                <TextBlock FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" Margin="7,0,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="Export PDF" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsExporting}" Value="True">
+                                                    <Setter Property="Text" Value="Exporting…" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </Button>
                     </StackPanel>

@@ -326,7 +326,25 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         if (SelectedId is { } id && Deck.ItemById(id) is null && Deck.TextById(id) is null) SelectedId = null;
     }
 
-    public void Export() => _owner.ExportPdf();
+    /// <summary>True while the PDF is being written, so the button can say so.</summary>
+    [ObservableProperty] bool _isExporting;
+
+    /// <summary>Writes the PDF, letting the screen show "Exporting…" first: the writing itself holds the screen until it is done.</summary>
+    public async void Export()
+    {
+        if (IsExporting) return;
+        FinishEditing();
+        IsExporting = true;
+        await System.Windows.Threading.Dispatcher.Yield(System.Windows.Threading.DispatcherPriority.Background);
+        try
+        {
+            _owner.ExportPdf();
+        }
+        finally
+        {
+            IsExporting = false;
+        }
+    }
     public void Close() => _owner.CloseArrange();
 
     // ---------------------------------------------------------------- text boxes
@@ -409,13 +427,32 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         if (EditingId == textId) return;
         FinishEditing();
         if (Deck.TextById(textId) is not { } text) return;
-        Deck.Snapshot();   // the whole edit undoes in one step
+        Deck.Snapshot();   // the whole edit undoes in one step, including what typing pushed along
+        _wordsBefore = JsonSerializer.Serialize(text.Blocks);
+        _spotsBefore = Spots();
+        _pagesBefore = Session.Pages.Count;
         EditingId = textId;
         SelectedId = textId;
         OnPropertyChanged(nameof(IsEditing));
         RaiseSelection();
         EditStarted?.Invoke(text, startAt);
         Changed?.Invoke();
+    }
+
+    string _wordsBefore = "";
+    Dictionary<string, Spot> _spotsBefore = [];
+    int _pagesBefore;
+
+    /// <summary>
+    /// The words so far, while typing: things below the box make room straight away instead of when
+    /// the edit ends. Part of the edit's undo step; not saved until the edit ends.
+    /// </summary>
+    public void PreviewEdit(List<DocBlock> blocks)
+    {
+        if (EditingId is not { } id || Deck.TextById(id) is not { } text) return;
+        if (JsonSerializer.Serialize(blocks) == JsonSerializer.Serialize(text.Blocks)) return;
+        Deck.SetText(id, blocks);
+        Commit(id, persist: false);
     }
 
     /// <summary>Takes the editor's words into the box and closes the editor. A box left with nothing in it goes.</summary>
@@ -435,9 +472,13 @@ public sealed partial class PageLayoutViewModel : ObservableObject
                 Session.TextItems.Remove(text);
                 if (SelectedId == id) SelectedId = null;
             }
-            else if (JsonSerializer.Serialize(blocks) == JsonSerializer.Serialize(text.Blocks))
+            else if (JsonSerializer.Serialize(blocks) == _wordsBefore)
             {
-                Deck.DiscardSnapshot();   // opened and closed without a change: nothing to undo
+                // the words are as they were; unless typing along the way pushed things and left them there, nothing to undo
+                Deck.SetText(id, blocks);
+                Settle(id);
+                if (Session.Pages.Count == _pagesBefore && Spots().All(s => _spotsBefore.TryGetValue(s.Key, out var b) && b == s.Value))
+                    Deck.DiscardSnapshot();
             }
             else
             {
@@ -568,7 +609,8 @@ public sealed partial class PageLayoutViewModel : ObservableObject
     /// <summary>A finished edit: settled, saved with the session, and every label brought up to date.</summary>
     /// <param name="movedId">What the user just moved, added or typed in; it keeps its place when it ties with something.</param>
     /// <param name="from">Where things were before the change, for gliding them; taken now when not given.</param>
-    public void Commit(string? movedId = null, IReadOnlyDictionary<string, Spot>? from = null)
+    /// <param name="persist">Save the session; false while typing, whose words are saved when the edit ends.</param>
+    public void Commit(string? movedId = null, IReadOnlyDictionary<string, Spot>? from = null, bool persist = true)
     {
         from ??= Spots();
         Settle(movedId);
@@ -578,8 +620,12 @@ public sealed partial class PageLayoutViewModel : ObservableObject
                 moves[key] = was;
         if (moves.Count > 0) Moved?.Invoke(moves);
 
-        _owner.PersistLayout();
-        FlashSaved();
+        if (persist)
+        {
+            _owner.PersistLayout();
+            FlashSaved();
+            _owner.LastExport = "";   // the last export's message no longer describes the pages
+        }
         _owner.RaiseCanExport();
         OnPropertyChanged(nameof(Light));
         OnPropertyChanged(nameof(Titles));

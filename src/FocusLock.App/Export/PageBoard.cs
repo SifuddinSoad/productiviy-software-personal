@@ -366,11 +366,19 @@ public sealed class PageBoard : FrameworkElement
             dc.Pop();
         }
 
-        if (m.Session.Extracts.Count == 0 && m.Session.TextItems.Count == 0 && l.Slots.Count > 0)
+        // an empty page says how to fill it
+        foreach (var slot in l.Slots)
         {
-            var hint = Text("Pick a region on the canvas, or add text above", 12, Muted);
-            var s = l.Slots[0].Sheet;
-            dc.DrawText(hint, new Point(s.X + (s.Width - hint.Width) / 2, s.Y + s.Height / 2 - hint.Height / 2));
+            var empty = !m.Deck.ItemsOn(slot.Page.Id).Any()
+                        && !m.Session.TextItems.Any(t => m.FragmentsOf(t).Any(f => f.PageIndex == slot.Index))
+                        && _landing?.PageId != slot.Page.Id;
+            if (!empty || slot.Sheet.Bottom < 0 || slot.Sheet.Top > ActualHeight) continue;
+            var s = slot.Sheet;
+            var first = Text("This page is empty", Math.Max(10, 13 * z), Muted, weight: FontWeights.SemiBold);
+            var second = Text("Drag a section here from the left, or use Insert", Math.Max(9, 11 * z), Muted, weight: FontWeights.Normal);
+            var top = s.Y + s.Height / 2 - (first.Height + second.Height + 4) / 2;
+            dc.DrawText(first, new Point(s.X + (s.Width - first.Width) / 2, top));
+            dc.DrawText(second, new Point(s.X + (s.Width - second.Width) / 2, top + first.Height + 4));
         }
 
         dc.DrawRoundedRectangle(null, AddPen, l.AddButton, 9, 9);

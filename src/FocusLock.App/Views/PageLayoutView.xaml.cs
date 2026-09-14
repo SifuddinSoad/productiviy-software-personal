@@ -22,12 +22,21 @@ public partial class PageLayoutView : UserControl
     readonly ObservableCollection<PageThumb> _thumbs = [];
     readonly List<BitmapSource?> _thumbPictures = [];
     readonly DispatcherTimer _thumbsDue = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    readonly DispatcherTimer _previewDue = new() { Interval = TimeSpan.FromMilliseconds(300) };
 
     public PageLayoutView()
     {
         InitializeComponent();
         _editor = new DocumentEditor(Editor);
         _editor.ContextChanged += () => _vm?.Format.Follow(_editor);
+
+        // a moment after typing pauses, what is below the box moves to make room
+        _editor.ContentChanged += () => { _previewDue.Stop(); _previewDue.Start(); };
+        _previewDue.Tick += (_, _) =>
+        {
+            _previewDue.Stop();
+            if (_vm is { IsEditing: true } vm && EditorFrame.Visibility == Visibility.Visible) vm.PreviewEdit(_editor.Read());
+        };
         Editor.PreviewKeyDown += OnEditorKeyDown;
         Editor.PreviewMouseWheel += (_, e) => { Board.ScrollBy(e.Delta); e.Handled = true; };
         Board.ViewMoved += OnViewMoved;
@@ -297,6 +306,7 @@ public partial class PageLayoutView : UserControl
 
     void OnEditEnded()
     {
+        _previewDue.Stop();
         EditorFrame.Visibility = Visibility.Collapsed;
         Board.Focus();
     }
