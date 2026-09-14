@@ -52,6 +52,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         PageLayout.Complete(owner.Session);
         Deck = new PageDeck(owner.Session);
         Settle(null);   // layouts from before settling may overlap
+        RebuildSections();
         _owner.PropertyChanged += OnOwnerChanged;
     }
 
@@ -124,8 +125,169 @@ public sealed partial class PageLayoutViewModel : ObservableObject
     {
         if (SelectedId == id) return;
         SelectedId = id;
+        RaiseSelection();
         Changed?.Invoke();
     }
+
+    // ---------------------------------------------------------------- what the side panel shows
+
+    public bool HasSelection => SelectedId is { } id && (Deck.ItemById(id) is not null || Deck.TextById(id) is not null);
+    public bool IsSectionSelected => SelectedId is { } id && Deck.ItemById(id) is not null;
+    public bool IsTextSelected => SelectedId is { } id && Deck.TextById(id) is not null;
+
+    /// <summary>Nothing is selected and nothing is being typed: the panel shows the page and document.</summary>
+    public bool ShowsPageSettings => !HasSelection && !IsEditing;
+    public bool ShowsSelection => HasSelection && !IsEditing;
+
+    public string SelectionTitle => IsSectionSelected ? "SECTION" : "TEXT";
+
+    public string SelectedName => SelectedId is { } id
+        ? Deck.ItemById(id)?.Name is { Length: > 0 } name ? name
+        : Deck.TextById(id) is { } text ? TextPreview(text) : ""
+        : "";
+
+    static string TextPreview(TextItem text)
+    {
+        var words = string.Concat(text.Blocks.OfType<ParagraphBlock>().SelectMany(p => p.Runs).Select(r => r.Text)).Trim();
+        if (words.Length == 0) words = text.Blocks.FirstOrDefault() switch
+        {
+            TableBlock => "Table",
+            CalloutBlock => "Callout",
+            DividerBlock => "Line",
+            _ => "Text",
+        };
+        return words.Length > 40 ? words[..40] + "…" : words;
+    }
+
+    void RaiseSelection()
+    {
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(IsSectionSelected));
+        OnPropertyChanged(nameof(IsTextSelected));
+        OnPropertyChanged(nameof(ShowsPageSettings));
+        OnPropertyChanged(nameof(ShowsSelection));
+        OnPropertyChanged(nameof(SelectionTitle));
+        OnPropertyChanged(nameof(SelectedName));
+    }
+
+    /// <summary>The page in the middle of the view, which page settings apply to; the view keeps it up to date.</summary>
+    public int CurrentPageIndex
+    {
+        get => Math.Clamp(_currentPage, 0, Math.Max(0, Session.Pages.Count - 1));
+        set
+        {
+            if (_currentPage == value) return;
+            _currentPage = value;
+            RaisePageStatus();
+        }
+    }
+    int _currentPage;
+
+    public PdfPage? CurrentPage => Session.Pages.Count == 0 ? null : Session.Pages[CurrentPageIndex];
+    public bool CurrentLandscape => CurrentPage?.Landscape == true;
+    public bool CanDeletePage => Session.Pages.Count > 1;
+    public string CurrentPageTitle => $"PAGE {CurrentPageIndex + 1}";
+
+    public string StatusLabel
+    {
+        get
+        {
+            var items = Session.Extracts.Count + Session.TextItems.Count;
+            return $"Page {CurrentPageIndex + 1} of {Session.Pages.Count}  ·  {items} item{(items == 1 ? "" : "s")}";
+        }
+    }
+
+    void RaisePageStatus()
+    {
+        OnPropertyChanged(nameof(CurrentPageIndex));
+        OnPropertyChanged(nameof(CurrentLandscape));
+        OnPropertyChanged(nameof(CanDeletePage));
+        OnPropertyChanged(nameof(CurrentPageTitle));
+        OnPropertyChanged(nameof(StatusLabel));
+    }
+
+    public void SetCurrentLandscape(bool landscape)
+    {
+        if (CurrentPage is not { } page || page.Landscape == landscape) return;
+        FinishEditing();
+        Deck.SetLandscape(page.Id, landscape);
+        Commit();
+    }
+
+    public void DeleteCurrentPage()
+    {
+        if (CurrentPage is { } page) DeletePage(page);
+    }
+
+    public void SetWidthFraction(double fraction)
+    {
+        if (SelectedId is not { } id || IsEditing) return;
+        Deck.SetWidthFraction(id, fraction);
+        Commit(id);
+    }
+
+    public void AlignSelected(string align)
+    {
+        if (SelectedId is not { } id || IsEditing) return;
+        Deck.AlignOnPage(id, align);
+        Commit(id);
+    }
+
+    public void MovePage(int from, int to)
+    {
+        FinishEditing();
+        if (!Deck.MovePage(from, to)) return;
+        CurrentPageIndex = to;
+        Commit();
+    }
+
+    public void EditSelected()
+    {
+        if (SelectedId is { } id && Deck.TextById(id) is not null) BeginEdit(id);
+    }
+
+    /// <summary>Back to the canvas with the Extract tool ready, to pick another region.</summary>
+    public void PickRegion()
+    {
+        _owner.CloseArrange();
+        _owner.Panel = "extract";
+        _owner.StartExtractTool();
+    }
+
+    /// <summary>Every extract, for the list the sections are dragged in from.</summary>
+    public System.Collections.ObjectModel.ObservableCollection<SectionCard> Sections { get; } = [];
+
+    void RebuildSections()
+    {
+        var pages = Session.Pages.Select((p, i) => (p.Id, i)).ToDictionary(x => x.Id, x => x.i);
+        var cards = Session.Extracts.Select(e => new SectionCard(e.Id, e.Name, PictureFor(e),
+            pages.TryGetValue(e.PageId, out var i) ? $"Page {i + 1}" : "")).ToList();
+        if (cards.SequenceEqual(Sections)) return;
+        Sections.Clear();
+        foreach (var card in cards) Sections.Add(card);
+    }
+
+    /// <summary>Lit for a moment after each save.</summary>
+    [ObservableProperty] bool _justSaved;
+
+    readonly System.Windows.Threading.DispatcherTimer _savedFades = new() { Interval = TimeSpan.FromMilliseconds(1500) };
+
+    void FlashSaved()
+    {
+        JustSaved = true;
+        _savedFades.Stop();
+        _savedFades.Tick -= FadeSaved;
+        _savedFades.Tick += FadeSaved;
+        _savedFades.Start();
+    }
+
+    void FadeSaved(object? sender, EventArgs e)
+    {
+        _savedFades.Stop();
+        JustSaved = false;
+    }
+
+    public string SessionTitle => $"{Session.Name} · PDF";
 
     public void ShowGuides(string? pageId, IReadOnlyList<Guide> guides)
     {
@@ -172,6 +334,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
     public static class NewText
     {
         public const string Text = "text";
+        public const string Heading = "heading";
         public const string Table = "table";
         public const string Callout = "callout";
         public const string Line = "line";
@@ -230,6 +393,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
             NewText.Table => [new TableBlock { Rows = [.. Enumerable.Range(0, 3).Select(_ => Enumerable.Range(0, 3).Select(_ => new TableCell()).ToList())] }],
             NewText.Callout => [new CalloutBlock { Tone = CalloutTone.Note, Paragraphs = [new ParagraphBlock()] }],
             NewText.Line => [new DividerBlock()],
+            NewText.Heading => [new ParagraphBlock { Style = DocStyle.H1 }],
             _ => [new ParagraphBlock()],
         };
         var text = new TextItem { Id = Core.Ids.New("t"), PageId = page.Id, PageX = PageLayout.Margin, PageY = below, PageW = pw - 2 * PageLayout.Margin, Blocks = blocks };
@@ -249,6 +413,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         EditingId = textId;
         SelectedId = textId;
         OnPropertyChanged(nameof(IsEditing));
+        RaiseSelection();
         EditStarted?.Invoke(text, startAt);
         Changed?.Invoke();
     }
@@ -260,6 +425,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         var blocks = EditFinishing?.Invoke();
         EditingId = null;
         OnPropertyChanged(nameof(IsEditing));
+        RaiseSelection();
         EditEnded?.Invoke();
 
         if (Deck.TextById(id) is { } text && blocks is not null)
@@ -413,6 +579,7 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         if (moves.Count > 0) Moved?.Invoke(moves);
 
         _owner.PersistLayout();
+        FlashSaved();
         _owner.RaiseCanExport();
         OnPropertyChanged(nameof(Light));
         OnPropertyChanged(nameof(Titles));
@@ -423,9 +590,19 @@ public sealed partial class PageLayoutViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRedo));
         OnPropertyChanged(nameof(CanExport));
         OnPropertyChanged(nameof(PageCountLabel));
+        DropStaleSelection();
+        RaiseSelection();
+        RaisePageStatus();
+        RebuildSections();
         Changed?.Invoke();
     }
 }
+
+/// <summary>An extract in the list sections are dragged in from.</summary>
+public sealed record SectionCard(string Id, string Name, BitmapSource? Picture, string PageLabel);
+
+/// <summary>A page in the page list.</summary>
+public sealed record PageThumb(int Index, string Label, BitmapSource? Picture, bool Current);
 
 /// <summary>Where the caret is in the text being edited, so the formatting bar can show what is on.</summary>
 public sealed partial class TextFormatState : ObservableObject

@@ -215,6 +215,72 @@ public class PageDeckTests
     }
 
     [Fact]
+    public void Moving_a_page_changes_the_order_and_keeps_what_is_on_it()
+    {
+        var (session, deck) = TwoPages();
+        deck.AddPage();   // p1, p2, p3
+
+        Assert.True(deck.MovePage(0, 2));
+
+        Assert.Equal("p1", session.Pages[2].Id);
+        Assert.Equal("p2", session.Pages[0].Id);
+        Assert.Equal("p1", session.Extracts[0].PageId);
+        deck.Undo();
+        Assert.Equal("p1", session.Pages[0].Id);
+    }
+
+    [Fact]
+    public void Moving_a_page_to_where_it_already_is_or_out_of_range_does_nothing()
+    {
+        var (_, deck) = TwoPages();
+
+        Assert.False(deck.MovePage(1, 1));
+        Assert.False(deck.MovePage(0, 5));
+        Assert.False(deck.MovePage(-1, 0));
+        Assert.False(deck.CanUndo);
+    }
+
+    [Fact]
+    public void A_section_set_to_half_width_keeps_its_shape_and_stays_inside_the_margins()
+    {
+        var (session, deck) = TwoPages();
+        var a = session.Extracts[0];
+        a.PageX = 400;
+
+        deck.SetWidthFraction("a", 0.5);
+
+        var text = 595 - 2 * PageLayout.Margin;
+        Assert.Equal(text / 2, a.PageW, 6);
+        Assert.True(a.PageX + a.PageW <= 595 - PageLayout.Margin + 0.01);
+        Assert.Equal(0.5, PageLayout.BoxOf(a, false).H / a.PageW, 6);   // 400 x 200 region
+    }
+
+    [Fact]
+    public void A_text_box_set_to_full_width_spans_the_margins()
+    {
+        var (_, deck) = TwoPages();
+        var text = deck.AddText("p1", 200, 300, 150, []);
+
+        deck.SetWidthFraction(text.Id, 1);
+
+        Assert.Equal((PageLayout.Margin, 595 - 2 * PageLayout.Margin), (text.PageX, text.PageW));
+    }
+
+    [Theory]
+    [InlineData("left", 18)]
+    [InlineData("center", (595 - 300) / 2.0)]
+    [InlineData("right", 595 - 18 - 300)]
+    public void Aligning_puts_a_box_at_the_left_margin_the_middle_or_the_right_margin(string align, double x)
+    {
+        var (session, deck) = TwoPages();
+
+        deck.AlignOnPage("a", align);
+
+        Assert.Equal(x, session.Extracts[0].PageX, 6);
+        Assert.True(deck.CanUndo);
+    }
+
+    [Fact]
     public void Duplicating_a_section_puts_a_copy_straight_below_it()
     {
         var (session, deck) = TwoPages();

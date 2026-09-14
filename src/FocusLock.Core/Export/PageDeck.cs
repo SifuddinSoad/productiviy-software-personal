@@ -259,6 +259,67 @@ public sealed class PageDeck(Session session)
         Session.PdfLight = light;
     }
 
+    /// <summary>Moves a page, and everything on it, to another place in the order.</summary>
+    public bool MovePage(int from, int to)
+    {
+        var count = Session.Pages.Count;
+        if (from == to || from < 0 || to < 0 || from >= count || to >= count) return false;
+        Snapshot();
+        var page = Session.Pages[from];
+        Session.Pages.RemoveAt(from);
+        Session.Pages.Insert(to, page);
+        return true;
+    }
+
+    /// <summary>
+    /// Sets a box's width to a share of the room between the margins, keeping a section's shape. It
+    /// stays where it is unless that would cross the right margin.
+    /// </summary>
+    public void SetWidthFraction(string id, double fraction)
+    {
+        var (pageId, x) = ItemById(id) is { } i ? (i.PageId, i.PageX) : TextById(id) is { } t ? (t.PageId, t.PageX) : ("", 0.0);
+        if (PageById(pageId) is not { } page) return;
+
+        var (pw, _) = PageLayout.SizeOf(page);
+        var room = pw - 2 * PageLayout.Margin;
+        var width = room * Math.Clamp(fraction, 0.05, 1);
+        x = Math.Clamp(x, PageLayout.Margin, pw - PageLayout.Margin - width);
+
+        Snapshot();
+        if (ItemById(id) is { } item)
+        {
+            item.PageX = x;
+            item.PageW = width;
+            PageLayout.Clamp(item, page, Session.PdfTitles);
+        }
+        else if (TextById(id) is { } text)
+        {
+            text.PageX = x;
+            text.PageW = width;
+            PageLayout.Clamp(text, page);
+        }
+    }
+
+    /// <summary>Puts a box against the left margin, in the middle of the page, or against the right margin.</summary>
+    /// <param name="align">"left", "center" or "right".</param>
+    public void AlignOnPage(string id, string align)
+    {
+        var (pageId, width) = ItemById(id) is { } i ? (i.PageId, i.PageW) : TextById(id) is { } t ? (t.PageId, t.PageW) : ("", 0.0);
+        if (PageById(pageId) is not { } page) return;
+
+        var (pw, _) = PageLayout.SizeOf(page);
+        var x = align switch
+        {
+            "center" => (pw - width) / 2,
+            "right" => pw - PageLayout.Margin - width,
+            _ => PageLayout.Margin,
+        };
+
+        Snapshot();
+        if (ItemById(id) is { } item) item.PageX = Math.Clamp(x, 0, pw - item.PageW);
+        else if (TextById(id) is { } text) text.PageX = Math.Clamp(x, 0, pw - text.PageW);
+    }
+
     /// <summary>
     /// A copy of a section or text box straight below the original, next to it in the list. The
     /// caller settles afterwards, so what was below makes room.
