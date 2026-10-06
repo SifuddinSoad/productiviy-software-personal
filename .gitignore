@@ -4,3 +4,8 @@ obj/
 *.user
 build/
 .claude/settings.local.json
+
+# Local / personal
+.claude/
+docs/superpowers/
+*.zip

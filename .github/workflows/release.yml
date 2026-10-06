@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Test
+        run: dotnet test tests/FocusLock.Core.Tests -c Release
+
+      - name: Publish
+        shell: pwsh
+        run: ./scripts/build.ps1
+
+      - name: Zip
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}'.TrimStart('v') } else { 'dev' }
+          $zip = "FocusMood-$version-win-x64.zip"
+          Compress-Archive -Path build/FocusLock/* -DestinationPath $zip
+          "ZIP=$zip" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Upload to release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP }}
+          generate_release_notes: true
+
+      - name: Upload artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: FocusMood-dev-win-x64
+          path: ${{ env.ZIP }}
