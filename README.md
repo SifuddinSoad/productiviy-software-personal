@@ -62,18 +62,23 @@ no Task Manager. When it's done, lay your work out on A4 pages and export a PDF.
   backs off if the app crash-loops.
 
 ### 🧠 Whiteboard
-- Infinite canvas with frames, text, sticky notes, shapes, tables and plan prompts.
+- One infinite canvas per plan in the session.
+- Frames, text, sticky notes, shapes, tables and plan prompts.
 - Freehand pen strokes and connectors with route and arrow styles.
-- Marquee selection, snapping, colour palettes.
+- Marquee selection, snapping, duplicate, undo / redo, colour palettes.
+- Autosaves every second.
 
 ### 📄 Arrange pages & PDF export
-- Lay the canvas out as A4 pages, like a document editor.
+- **Extract tool**: box any region of a canvas to put it on the pages.
+- Lay those regions out on A4 pages, like a document editor.
 - Sections and text boxes that never overlap, swap places when dragged, and make room while you type.
 - Exports to PDF with embedded fonts (saved to `Documents\Focus Mood`).
 
 ### 📚 Sessions
-- Session history with progress, time range and plans.
-- Sessions are saved as JSON under `%LOCALAPPDATA%\FocusLock` — fully offline, no account, no telemetry.
+- Session history with progress, time range and plans; delete one or clear all.
+- Finished sessions open read-only, and you can still extract and export from them.
+- Session length from quick presets (25 min – 2 h) or an exact hours / minutes / seconds clock.
+- Saved as JSON under `%LOCALAPPDATA%\FocusLock` — fully offline, no account, no telemetry.
 
 ## Install
 
