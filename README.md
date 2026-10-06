@@ -13,15 +13,35 @@ no Task Manager. When it's done, lay your work out on A4 pages and export a PDF.
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 ![UI](https://img.shields.io/badge/UI-WPF-5C2D91)
+![License](https://img.shields.io/badge/license-MIT-green)
 ![Version](https://img.shields.io/badge/version-0.1.0-8fd18a)
 
 </div>
 
 ---
 
-> [!WARNING]
-> Focus Mood really does take over the screen. **Read [docs/RECOVERY.md](docs/RECOVERY.md)
-> before your first long session**, and try a 30-second session first.
+> [!CAUTION]
+> ## ⚠️ This app locks your computer
+>
+> While a session is running, **you cannot use your PC for anything else** until the timer ends:
+>
+> - The window goes fullscreen and stays on top; other monitors turn black.
+> - Alt+Tab, the Windows key, Alt+F4, Ctrl+Shift+Esc and similar shortcuts are blocked.
+> - **Task Manager is disabled** for the session.
+> - **Restarting does not end the session** — the app comes back at sign-in
+>   (and, with the guard service, before the desktop even appears).
+> - The only early way out is the **Emergency exit**, where you must type a long random code exactly.
+>
+> **Before you use it:**
+>
+> 1. Read **[docs/RECOVERY.md](docs/RECOVERY.md)** so you know how to get out if something goes wrong
+>    (Safe Mode + `--cleanup`, or WinRE).
+> 2. Try a **30-second session** first, ideally inside a virtual machine.
+> 3. Save your work in other apps and close anything you need — you won't be able to reach it.
+> 4. Don't start a session on a shared or work computer that someone else depends on.
+>
+> This software is provided **as is, without warranty** (see [LICENSE](LICENSE)).
+> You use it at your own risk; the author is not responsible for lost work or lost access.
 
 ## Features
 
@@ -146,6 +166,10 @@ Manager with `--service` it's the guard. They can never be out of sync.
 
 The [release workflow](.github/workflows/release.yml) runs the tests, publishes a
 self-contained win-x64 build and attaches the zip to a GitHub Release.
+
+## License
+
+[MIT](LICENSE) © 2026 Sifuddin Soad
 
 ## Credits
 
